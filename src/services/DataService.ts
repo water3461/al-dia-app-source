@@ -9,6 +9,9 @@ const STORAGE_KEY_BANKS = 'offline_banks_data';
 const STORAGE_KEY_RULES = 'offline_rules_data';
 const STORAGE_KEY_HIDDEN = 'hidden_banks';
 
+// CONFIGURACIÓN: Tiempo máximo de espera (2 segundos)
+const TIMEOUT_MS = 2000;
+
 export interface BankCard {
   id: string;
   name: string;
@@ -28,72 +31,62 @@ export interface Rule {
 
 export const DataService = {
 
-  // --- 1. OBTENER BANCOS (HÍBRIDO) ---
+  // --- 1. OBTENER BANCOS (RÁPIDO) ---
   getBanks: async (): Promise<BankCard[]> => {
     try {
-      // INTENTO ONLINE
-      console.log("📡 Buscando bancos en internet...");
-      const response = await axios.get(CARDS_URL);
+      console.log("📡 Buscando bancos (Timeout 2s)...");
+      // AGREGAMOS TIMEOUT AQUÍ
+      const response = await axios.get(CARDS_URL, { timeout: TIMEOUT_MS });
       const data = response.data.institutions;
       
-      // SI FUNCIONÓ, GUARDAMOS LA COPIA (CACHE)
       await AsyncStorage.setItem(STORAGE_KEY_BANKS, JSON.stringify(data));
       return data;
 
     } catch (error) {
-      // SI FALLA INTERNET, USAMOS LA COPIA GUARDADA
-      console.log("⚠️ Sin internet. Usando copia guardada de Bancos.");
+      console.log("⚠️ Sin internet o muy lento. Usando copia guardada de Bancos.");
       const cached = await AsyncStorage.getItem(STORAGE_KEY_BANKS);
       return cached ? JSON.parse(cached) : [];
     }
   },
 
-  // --- 2. OBTENER REGLAS (HÍBRIDO) ---
+  // --- 2. OBTENER REGLAS (RÁPIDO) ---
   getAllRules: async (): Promise<Rule[]> => {
     try {
-      // INTENTO ONLINE
-      console.log("📡 Buscando reglas en internet...");
-      const response = await axios.get(RULES_URL);
+      console.log("📡 Buscando reglas (Timeout 2s)...");
+      // AGREGAMOS TIMEOUT AQUÍ
+      const response = await axios.get(RULES_URL, { timeout: TIMEOUT_MS });
       const data = response.data.rules;
 
-      // SI FUNCIONÓ, GUARDAMOS COPIA
       await AsyncStorage.setItem(STORAGE_KEY_RULES, JSON.stringify(data));
       return data;
 
     } catch (error) {
-      // SI FALLA, USAMOS COPIA
-      console.log("⚠️ Sin internet. Usando copia guardada de Reglas.");
+      console.log("⚠️ Sin internet o muy lento. Usando copia guardada de Reglas.");
       const cached = await AsyncStorage.getItem(STORAGE_KEY_RULES);
       return cached ? JSON.parse(cached) : [];
     }
   },
 
-  // --- 3. REGLAS DEL DÍA (USANDO LA LÓGICA ANTERIOR) ---
+  // --- 3. REGLAS DEL DÍA ---
   getDailyRules: async (): Promise<Rule[]> => {
-    // Reutilizamos la función inteligente de arriba
     const allRules = await DataService.getAllRules();
     
-    // Filtramos por día
     const today = new Date().getDay(); 
     const todayAdjusted = today === 0 ? 7 : today;
     return allRules.filter((r: Rule) => r.days.includes(todayAdjusted));
   },
 
-  // --- 4. PREFERENCIAS DE USUARIO (SIEMPRE LOCAL) ---
+  // --- 4. PREFERENCIAS ---
   saveHiddenBanks: async (hiddenIds: string[]) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY_HIDDEN, JSON.stringify(hiddenIds));
-    } catch (e) {
-      console.error("Error guardando:", e);
-    }
+    } catch (e) { console.error(e); }
   },
 
   getHiddenBanks: async (): Promise<string[]> => {
     try {
       const jsonValue = await AsyncStorage.getItem(STORAGE_KEY_HIDDEN);
       return jsonValue != null ? JSON.parse(jsonValue) : [];
-    } catch (e) {
-      return [];
-    }
+    } catch (e) { return []; }
   }
 };
