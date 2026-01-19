@@ -9,17 +9,8 @@ import { StatusBar } from 'expo-status-bar';
 // --- IMPORTAMOS TUS PANTALLAS ---
 import HomeScreen from './src/screens/HomeScreen';
 import ScanScreen from './src/screens/ScanScreen';
-
-// Si no tienes ProfileScreen creado, usa este temporal para que no falle:
-function PlaceholderScreen() {
-  return (
-    <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center'}}>
-      <Text style={{color:'#FFF'}}>Perfil (Próximamente)</Text>
-    </View>
-  );
-}
-// Si TIENES un archivo ProfileScreen, descomenta la linea de abajo y borra la funcion de arriba:
-// import ProfileScreen from './src/screens/ProfileScreen';
+// 👇 AHORA SÍ IMPORTAMOS EL PERFIL REAL
+import ProfileScreen from './src/screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -50,8 +41,8 @@ function MainTabs() {
     >
       <Tab.Screen name="Hoy" component={HomeScreen} />
       <Tab.Screen name="Escanear" component={ScanScreen} />
-      {/* Usamos PlaceholderScreen para evitar errores si no tienes ProfileScreen aún */}
-      <Tab.Screen name="Mi Cuenta" component={PlaceholderScreen} />
+      {/* 👇 AHORA USAMOS EL COMPONENTE REAL */}
+      <Tab.Screen name="Mi Cuenta" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
