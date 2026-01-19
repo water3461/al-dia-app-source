@@ -1,64 +1,88 @@
-import React from 'react';
-import { StatusBar, Platform } from 'react-native'; // <--- IMPORTANTE: Importamos Platform
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { createNativeStackNavigator } from '@react-navigation/native-stack'; // <--- IMPORTANTE
+import { Ionicons } from '@expo/vector-icons';
+import { View, ActivityIndicator } from 'react-native';
 
+// Importamos pantallas
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen'; // <--- NUEVA
+import { DataService } from './src/services/DataService';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
-export default function App() {
+// 1. EL NAVIGATOR DE PESTAÑAS (La App principal)
+function MainTabs() {
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        <Tab.Navigator
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: { 
-              backgroundColor: '#121212', 
-              borderTopColor: '#333',
-              
-              // --- ZONA DE SEGURIDAD ---
-              // Si es Android, le damos una altura gigante (120) y mucho relleno abajo (60)
-              // Si es iPhone (ios), usamos medidas estándar.
-              height: Platform.OS === 'android' ? 120 : 90, 
-              paddingBottom: Platform.OS === 'android' ? 60 : 30,
-              paddingTop: 10,
-              // -------------------------
-              
-              elevation: 0,
-            },
-            tabBarActiveTintColor: '#D4AF37',
-            tabBarInactiveTintColor: '#666',
-            tabBarLabelStyle: { 
-              fontSize: 14, 
-              fontWeight: 'bold', 
-              marginBottom: 5 
-            },
-            tabBarIconStyle: { display: 'none' }
-          }}
-        >
-          <Tab.Screen 
-            name="Inicio" 
-            component={HomeScreen} 
-            options={{ tabBarLabel: 'HOY' }}
-          />
-          <Tab.Screen 
-            name="Calendario" 
-            component={CalendarScreen} 
-            options={{ tabBarLabel: 'SEMANA' }}
-          />
-          <Tab.Screen 
-            name="Perfil" 
-            component={ProfileScreen} 
-            options={{ tabBarLabel: 'MI CUENTA' }}
-          />
-        </Tab.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#000000',
+          borderTopColor: '#1A1A1A',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8
+        },
+        tabBarActiveTintColor: '#D4AF37',
+        tabBarInactiveTintColor: '#666666',
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: any;
+          if (route.name === 'Hoy') iconName = focused ? 'flash' : 'flash-outline';
+          else if (route.name === 'Semana') iconName = focused ? 'calendar' : 'calendar-outline';
+          else if (route.name === 'Mi Cuenta') iconName = focused ? 'person' : 'person-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen name="Hoy" component={HomeScreen} />
+      <Tab.Screen name="Semana" component={CalendarScreen} />
+      <Tab.Screen name="Mi Cuenta" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+}
+
+// 2. LA APP COMPLETA (Controla si vas al Onboarding o al Main)
+export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    checkFirstLaunch();
+  }, []);
+
+  const checkFirstLaunch = async () => {
+    // Descomenta la siguiente línea si quieres probar la bienvenida forzosamente:
+    await DataService.resetOnboarding(); 
+    
+    const isDone = await DataService.hasCompletedOnboarding();
+    setShowOnboarding(!isDone); // Si NO está hecho, mostramos onboarding
+    setIsLoading(false);
+  };
+
+  if (isLoading) {
+    return (
+      <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center'}}>
+        <ActivityIndicator size="large" color="#D4AF37" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {showOnboarding ? (
+          // Si es primera vez, mostramos SOLO Onboarding
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        ) : null}
+        
+        {/* Siempre cargamos MainTabs, pero si hay onboarding, React Navigation lo manejará */}
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
