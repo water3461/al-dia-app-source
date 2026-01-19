@@ -8,9 +8,7 @@ export default function ProfileScreen() {
   const [hiddenBanks, setHiddenBanks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  useEffect(() => { loadProfile(); }, []);
 
   const loadProfile = async () => {
     const banksData = await DataService.getBanks();
@@ -22,11 +20,8 @@ export default function ProfileScreen() {
 
   const toggleBank = async (bankId: string) => {
     let newHiddenList;
-    if (hiddenBanks.includes(bankId)) {
-      newHiddenList = hiddenBanks.filter(id => id !== bankId);
-    } else {
-      newHiddenList = [...hiddenBanks, bankId];
-    }
+    if (hiddenBanks.includes(bankId)) newHiddenList = hiddenBanks.filter(id => id !== bankId);
+    else newHiddenList = [...hiddenBanks, bankId];
     setHiddenBanks(newHiddenList);
     await DataService.saveHiddenBanks(newHiddenList);
   };
@@ -38,53 +33,29 @@ export default function ProfileScreen() {
       await NotificationService.scheduleDailyReminder();
       Alert.alert("✅ Activadas", "Te avisaremos todos los días a las 9:00 AM.");
     } else {
-      Alert.alert("⚠️ Permiso denegado", "Necesitas activar las notificaciones en la configuración.");
+      Alert.alert("⚠️ Permiso denegado", "Actívalas en la configuración de tu celular.");
     }
-  };
-
-  const handleMode = () => {
-    Alert.alert("🌙 Modo Oscuro", "El modo oscuro ya está activado por defecto en AL DÍA.");
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>MI PERFIL</Text>
-      </View>
-
+      <View style={styles.header}><Text style={styles.title}>MI PERFIL</Text></View>
       <ScrollView contentContainerStyle={styles.scroll}>
-        
         <View style={styles.userCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>YO</Text>
-          </View>
-          <View>
-            <Text style={styles.userName}>Configuración</Text>
-            <Text style={styles.userLevel}>Personaliza tus alertas</Text>
-          </View>
+          <View style={styles.avatarCircle}><Text style={styles.avatarText}>YO</Text></View>
+          <View><Text style={styles.userName}>Configuración</Text><Text style={styles.userLevel}>Personaliza tu app</Text></View>
         </View>
 
         <Text style={styles.sectionTitle}>MIS TARJETAS Y BANCOS</Text>
-        <Text style={styles.sectionSubtitle}>Apaga los que no tengas para limpiar tu inicio.</Text>
-        
         <View style={styles.optionsContainer}>
-          {loading ? (
-            <ActivityIndicator color="#D4AF37" style={{padding: 20}} />
-          ) : (
+          {loading ? ( <ActivityIndicator color="#D4AF37" style={{padding: 20}} /> ) : (
             banks.map((bank, index) => {
               const isActive = !hiddenBanks.includes(bank.id);
               return (
                 <View key={bank.id} style={[styles.optionRow, index > 0 && styles.separator]}>
-                  {/* PUNTO DE COLOR CON BORDE PARA QUE SE VEA EL NEGRO */}
                   <View style={[styles.colorDot, { backgroundColor: bank.primary_color }]} />
-                  
                   <Text style={styles.optionText}>{bank.name}</Text>
-                  <Switch
-                    trackColor={{ false: "#333", true: "#D4AF37" }}
-                    thumbColor={isActive ? "#FFF" : "#f4f3f4"}
-                    onValueChange={() => toggleBank(bank.id)}
-                    value={isActive}
-                  />
+                  <Switch trackColor={{ false: "#333", true: "#D4AF37" }} thumbColor={isActive ? "#FFF" : "#f4f3f4"} onValueChange={() => toggleBank(bank.id)} value={isActive} />
                 </View>
               );
             })
@@ -93,21 +64,14 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionTitle}>PREFERENCIAS</Text>
         <View style={styles.optionsContainer}>
-          
           <TouchableOpacity style={styles.optionRow} onPress={handleNotifications}>
-            <Text style={styles.optionIcon}>🔔</Text>
-            <Text style={styles.optionText}>Activar Notificaciones Diarias</Text>
-            <Text style={styles.arrow}>›</Text>
+            <Text style={styles.optionIcon}>🔔</Text><Text style={styles.optionText}>Notificaciones Diarias</Text><Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={[styles.optionRow, styles.separator]} onPress={handleMode}>
-            <Text style={styles.optionIcon}>🌙</Text>
-            <Text style={styles.optionText}>Modo Oscuro</Text>
-            <Text style={[styles.arrow, {color: '#D4AF37'}]}>On</Text>
+          <TouchableOpacity style={[styles.optionRow, styles.separator]} onPress={() => Alert.alert("Info", "Modo Oscuro activo")}>
+            <Text style={styles.optionIcon}>🌙</Text><Text style={styles.optionText}>Modo Oscuro</Text><Text style={[styles.arrow, {color: '#D4AF37'}]}>On</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.versionText}>AL DÍA v1.0.0 - Build 2026</Text>
+        <Text style={styles.versionText}>AL DÍA v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -123,24 +87,13 @@ const styles = StyleSheet.create({
   avatarText: { color: '#D4AF37', fontWeight: 'bold' },
   userName: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   userLevel: { color: '#888', fontSize: 13 },
-  sectionTitle: { color: '#D4AF37', fontSize: 12, fontWeight: 'bold', marginBottom: 5, marginLeft: 10, letterSpacing: 1 },
-  sectionSubtitle: { color: '#666', fontSize: 12, marginBottom: 15, marginLeft: 10 },
-  optionsContainer: { backgroundColor: '#1C1C1E', borderRadius: 15, marginBottom: 20, overflow: 'hidden' },
+  sectionTitle: { color: '#D4AF37', fontSize: 12, fontWeight: 'bold', marginBottom: 5, marginLeft: 10 },
+  optionsContainer: { backgroundColor: '#1C1C1E', borderRadius: 15, marginBottom: 20 },
   optionRow: { flexDirection: 'row', alignItems: 'center', padding: 15 },
   separator: { borderTopWidth: 1, borderTopColor: '#2C2C2E' },
-  
-  // AQUÍ ESTÁ EL FIX DEL BORDE
-  colorDot: { 
-    width: 12, 
-    height: 12, 
-    borderRadius: 6, 
-    marginRight: 15,
-    borderWidth: 1,      // <-- Borde
-    borderColor: '#888'  // <-- Gris claro
-  },
-
+  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 15, borderWidth: 1, borderColor: '#888' }, // FIX BORDE
   optionIcon: { fontSize: 20, marginRight: 15, width: 30, textAlign: 'center' },
-  optionText: { color: '#FFF', fontSize: 16, flex: 1, fontWeight: '500' },
+  optionText: { color: '#FFF', fontSize: 16, flex: 1 },
   arrow: { color: '#666', fontSize: 20, fontWeight: 'bold' },
   versionText: { color: '#444', textAlign: 'center', fontSize: 12 },
 });

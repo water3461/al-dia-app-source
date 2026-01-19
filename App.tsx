@@ -4,9 +4,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'; // <--- IMPORTANTE
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Importamos pantallas
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -16,10 +15,8 @@ import { DataService } from './src/services/DataService';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// 1. EL NAVIGATOR DE PESTAÑAS (Con ajuste automático de altura)
 function MainTabs() {
-  const insets = useSafeAreaInsets(); // <--- CALCULAMOS EL ESPACIO DE ANDROID
-
+  const insets = useSafeAreaInsets(); 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -27,10 +24,7 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#000000',
           borderTopColor: '#1A1A1A',
-          // AQUI ESTA EL ARREGLO:
-          // Altura base (60) + Lo que mida la barra de Android (insets.bottom)
           height: 60 + (insets.bottom > 0 ? insets.bottom : 10), 
-          // Empujamos los iconos hacia arriba para que no los tape la barra
           paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
           paddingTop: 8
         },
@@ -52,17 +46,15 @@ function MainTabs() {
   );
 }
 
-// 2. LA APP COMPLETA
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  useEffect(() => {
-    checkFirstLaunch();
-  }, []);
+  useEffect(() => { checkFirstLaunch(); }, []);
 
   const checkFirstLaunch = async () => {
-    // await DataService.resetOnboarding(); // Descomentar para probar bienvenida
+    // Si quieres probar la bienvenida otra vez, descomenta la linea de abajo:
+    // await DataService.resetOnboarding(); 
     const isDone = await DataService.hasCompletedOnboarding();
     setShowOnboarding(!isDone);
     setIsLoading(false);
@@ -77,13 +69,10 @@ export default function App() {
   }
 
   return (
-    // SafeAreaProvider es necesario para que funcionen los cálculos de insets
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {showOnboarding ? (
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          ) : null}
+          {showOnboarding ? ( <Stack.Screen name="Onboarding" component={OnboardingScreen} /> ) : null}
           <Stack.Screen name="MainTabs" component={MainTabs} />
         </Stack.Navigator>
       </NavigationContainer>

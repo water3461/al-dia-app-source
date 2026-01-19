@@ -7,9 +7,7 @@ export default function OnboardingScreen({ navigation }: any) {
   const [selectedBanks, setSelectedBanks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadBanks();
-  }, []);
+  useEffect(() => { loadBanks(); }, []);
 
   const loadBanks = async () => {
     const data = await DataService.getBanks();
@@ -18,22 +16,15 @@ export default function OnboardingScreen({ navigation }: any) {
   };
 
   const toggleBank = (id: string) => {
-    if (selectedBanks.includes(id)) {
-      setSelectedBanks(selectedBanks.filter(item => item !== id));
-    } else {
-      setSelectedBanks([...selectedBanks, id]);
-    }
+    if (selectedBanks.includes(id)) setSelectedBanks(selectedBanks.filter(item => item !== id));
+    else setSelectedBanks([...selectedBanks, id]);
   };
 
   const handleContinue = async () => {
-    // El usuario selecciona lo que TIENE.
-    // Guardamos lo que debe OCULTAR (lo que NO seleccionó).
     const allIds = banks.map(b => b.id);
     const hiddenIds = allIds.filter(id => !selectedBanks.includes(id));
-    
     await DataService.saveHiddenBanks(hiddenIds);
     await DataService.completeOnboarding();
-    
     navigation.replace('MainTabs');
   };
 
@@ -42,7 +33,7 @@ export default function OnboardingScreen({ navigation }: any) {
       <View style={styles.header}>
         <Text style={styles.emoji}>👋</Text>
         <Text style={styles.title}>Bienvenido a AL DÍA</Text>
-        <Text style={styles.subtitle}>Selecciona los bancos o tarjetas que tienes para mostrarte solo descuentos reales.</Text>
+        <Text style={styles.subtitle}>Selecciona los bancos que tienes:</Text>
       </View>
 
       {loading ? (
@@ -52,22 +43,9 @@ export default function OnboardingScreen({ navigation }: any) {
           {banks.map((bank) => {
             const isSelected = selectedBanks.includes(bank.id);
             return (
-              <TouchableOpacity 
-                key={bank.id} 
-                style={[
-                  styles.option, 
-                  isSelected && styles.optionSelected, 
-                  { borderColor: isSelected ? '#D4AF37' : '#333' }
-                ]}
-                onPress={() => toggleBank(bank.id)}
-              >
-                {/* PUNTO DE COLOR CON BORDE PARA QUE SE VEA EL NEGRO */}
+              <TouchableOpacity key={bank.id} style={[styles.option, isSelected && styles.optionSelected, { borderColor: isSelected ? '#D4AF37' : '#333' }]} onPress={() => toggleBank(bank.id)}>
                 <View style={[styles.dot, { backgroundColor: bank.primary_color }]} />
-                
-                <Text style={[styles.bankName, isSelected && { color: '#D4AF37', fontWeight: 'bold' }]}>
-                  {bank.name}
-                </Text>
-                
+                <Text style={[styles.bankName, isSelected && { color: '#D4AF37', fontWeight: 'bold' }]}>{bank.name}</Text>
                 <View style={[styles.checkbox, isSelected && { borderColor: '#D4AF37' }]}>
                   {isSelected && <Text style={styles.check}>✓</Text>}
                 </View>
@@ -79,14 +57,8 @@ export default function OnboardingScreen({ navigation }: any) {
       )}
 
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.button, selectedBanks.length === 0 && styles.buttonDisabled]} 
-          onPress={handleContinue}
-          disabled={selectedBanks.length === 0}
-        >
-          <Text style={styles.buttonText}>
-            {selectedBanks.length === 0 ? 'Selecciona al menos uno' : 'COMENZAR A AHORRAR 🚀'}
-          </Text>
+        <TouchableOpacity style={[styles.button, selectedBanks.length === 0 && styles.buttonDisabled]} onPress={handleContinue} disabled={selectedBanks.length === 0}>
+          <Text style={styles.buttonText}>{selectedBanks.length === 0 ? 'Selecciona al menos uno' : 'COMENZAR A AHORRAR 🚀'}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -98,28 +70,16 @@ const styles = StyleSheet.create({
   header: { padding: 30, alignItems: 'center' },
   emoji: { fontSize: 50, marginBottom: 10 },
   title: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-  subtitle: { color: '#888', textAlign: 'center', fontSize: 16, lineHeight: 22 },
-  
+  subtitle: { color: '#888', textAlign: 'center', fontSize: 16 },
   list: { paddingHorizontal: 20 },
   option: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, marginBottom: 10, borderRadius: 12, borderWidth: 1 },
   optionSelected: { backgroundColor: 'rgba(212, 175, 55, 0.1)' },
-  
-  // AQUÍ ESTÁ EL FIX DEL BORDE
-  dot: { 
-    width: 12, 
-    height: 12, 
-    borderRadius: 6, 
-    marginRight: 15,
-    borderWidth: 1,          // <-- Borde
-    borderColor: '#888'      // <-- Gris claro para contraste
-  },
-
+  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 15, borderWidth: 1, borderColor: '#888' },
   bankName: { color: '#FFF', fontSize: 16, flex: 1 },
   checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#666', justifyContent: 'center', alignItems: 'center' },
   check: { color: '#D4AF37', fontWeight: 'bold', fontSize: 14 },
-  
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#222', backgroundColor: '#000' },
   button: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
   buttonDisabled: { backgroundColor: '#333' },
-  buttonText: { color: '#000', fontWeight: 'bold', fontSize: 16, letterSpacing: 1 }
+  buttonText: { color: '#000', fontWeight: 'bold', fontSize: 16 }
 });
