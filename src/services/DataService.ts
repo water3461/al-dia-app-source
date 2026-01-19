@@ -1,7 +1,9 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CARDS_URL = 'https://water3461.github.io/al-dia-mvp/docs/master_data_cards.json';
 const RULES_URL = 'https://water3461.github.io/al-dia-mvp/docs/master_data_rules.json';
+const STORAGE_KEY = 'hidden_banks';
 
 export interface BankCard {
   id: string;
@@ -21,18 +23,26 @@ export interface Rule {
 }
 
 export const DataService = {
-  // 1. Descargar Lista de Bancos
+  // --- 1. DATOS DE INTERNET ---
   getBanks: async (): Promise<BankCard[]> => {
     try {
       const response = await axios.get(CARDS_URL);
       return response.data.institutions;
     } catch (error) {
-      console.error("Error bajando bancos:", error);
+      console.error("Error bancos:", error);
       return [];
     }
   },
 
-  // 2. Descargar Reglas de HOY
+  getAllRules: async (): Promise<Rule[]> => {
+    try {
+      const response = await axios.get(RULES_URL);
+      return response.data.rules;
+    } catch (error) {
+      return [];
+    }
+  },
+
   getDailyRules: async (): Promise<Rule[]> => {
     try {
       const response = await axios.get(RULES_URL);
@@ -45,13 +55,23 @@ export const DataService = {
     }
   },
 
-  // 3. NUEVO: Descargar TODAS las reglas (Para el Calendario)
-  getAllRules: async (): Promise<Rule[]> => {
+  // --- 2. MEMORIA DEL TELÉFONO (NUEVO) ---
+  
+  // Guardar lista de bancos ocultos (Ids)
+  saveHiddenBanks: async (hiddenIds: string[]) => {
     try {
-      const response = await axios.get(RULES_URL);
-      return response.data.rules;
-    } catch (error) {
-      console.error("Error bajando histórico:", error);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(hiddenIds));
+    } catch (e) {
+      console.error("Error guardando:", e);
+    }
+  },
+
+  // Leer lista de bancos ocultos
+  getHiddenBanks: async (): Promise<string[]> => {
+    try {
+      const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
+      return jsonValue != null ? JSON.parse(jsonValue) : [];
+    } catch (e) {
       return [];
     }
   }
