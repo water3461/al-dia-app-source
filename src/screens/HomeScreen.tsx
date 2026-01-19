@@ -1,13 +1,18 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, SafeAreaView, StatusBar, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, SafeAreaView, StatusBar, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { DataService, Rule, BankCard } from '../services/DataService';
+import RuleDetailModal from '../components/RuleDetailModal'; // <--- IMPORTAMOS EL NUEVO COMPONENTE
 
 export default function HomeScreen() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [banks, setBanks] = useState<BankCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ESTADO PARA EL MODAL
+  const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -19,7 +24,6 @@ export default function HomeScreen() {
     const rulesData = await DataService.getDailyRules();
     const banksData = await DataService.getBanks();
     const hiddenBanks = await DataService.getHiddenBanks();
-
     const filteredRules = rulesData.filter(r => !hiddenBanks.includes(r.issuer_id));
 
     setRules(filteredRules);
@@ -35,6 +39,12 @@ export default function HomeScreen() {
 
   const getBank = (issuerId: string) => {
     return banks.find(b => b.id === issuerId);
+  };
+
+  // FUNCIÓN AL TOCAR UNA TARJETA
+  const handleCardPress = (rule: Rule) => {
+    setSelectedRule(rule);
+    setModalVisible(true);
   };
 
   return (
@@ -59,36 +69,37 @@ export default function HomeScreen() {
             const bank = getBank(item.issuer_id);
             const bgColor = bank ? bank.primary_color : '#1C1C1E';
             const bankName = bank ? bank.name : item.issuer_id;
-            
-            // TRUCO: Obtenemos la primera letra del banco (Ej: "S" de Santander)
             const initial = bankName ? bankName.charAt(0).toUpperCase() : "?";
 
             return (
-              <View key={index} style={[styles.card, { backgroundColor: bgColor }]}>
-                
-                <View style={styles.cardHeader}>
-                  <View style={styles.bankIdentity}>
-                    {/* LOGO GENERADO AUTOMÁTICAMENTE (Círculo Blanco + Letra) */}
-                    <View style={styles.logoPlaceholder}>
-                      <Text style={[styles.logoText, { color: bgColor }]}>{initial}</Text>
+              // AHORA LA TARJETA ES TOCABLE
+              <TouchableOpacity 
+                key={index} 
+                activeOpacity={0.9}
+                onPress={() => handleCardPress(item)}
+              >
+                <View style={[styles.card, { backgroundColor: bgColor }]}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.bankIdentity}>
+                      <View style={styles.logoPlaceholder}>
+                        <Text style={styles.logoText}>{initial}</Text>
+                      </View>
+                      <Text style={styles.cardBankName}>{bankName}</Text>
                     </View>
-                    
-                    <Text style={styles.cardBankName}>{bankName}</Text>
+                    <View style={styles.discountBadge}>
+                      <Text style={styles.discountText}>{item.benefit_value}</Text>
+                    </View>
                   </View>
-                  
-                  <View style={styles.discountBadge}>
-                    <Text style={styles.discountText}>{item.benefit_value}</Text>
-                  </View>
-                </View>
 
-                <Text style={styles.cardCommerce}>{item.commerce_name}</Text>
-                <Text style={styles.cardCondition}>{item.condition}</Text>
-                
-                <View style={styles.tipContainer}>
-                  <Text style={styles.tipIcon}>💡</Text>
-                  <Text style={styles.cardTip}>{item.smart_tip}</Text>
+                  <Text style={styles.cardCommerce}>{item.commerce_name}</Text>
+                  <Text style={styles.cardCondition} numberOfLines={1}>{item.condition}</Text>
+                  
+                  <View style={styles.tipContainer}>
+                    <Text style={styles.tipIcon}>💡</Text>
+                    <Text style={styles.cardTip} numberOfLines={1}>{item.smart_tip}</Text>
+                  </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         ) : (
@@ -99,6 +110,15 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* EL MODAL INVISIBLE QUE APARECE AL TOCAR */}
+      <RuleDetailModal 
+        isVisible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        rule={selectedRule}
+        bank={selectedRule ? getBank(selectedRule.issuer_id) : undefined}
+      />
+
     </SafeAreaView>
   );
 }
@@ -117,21 +137,8 @@ const styles = StyleSheet.create({
   
   bankIdentity: { flexDirection: 'row', alignItems: 'center' },
   
-  // ESTILO DEL NUEVO LOGO AUTOMÁTICO
-  logoPlaceholder: { 
-    width: 28, 
-    height: 28, 
-    borderRadius: 14, 
-    backgroundColor: 'white', // Círculo blanco puro
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginRight: 10 
-  },
-  logoText: { 
-    fontWeight: '900', 
-    fontSize: 16,
-    // El color del texto será el mismo del fondo de la tarjeta para dar efecto "recortado"
-  },
+  logoPlaceholder: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 1, borderColor: '#000' },
+  logoText: { color: '#000000', fontWeight: '900', fontSize: 16 },
   
   cardBankName: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 14, textTransform: 'uppercase' },
   discountBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
