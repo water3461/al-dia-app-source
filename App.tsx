@@ -1,8 +1,31 @@
-// ... (Asegúrate de importar ScanScreen arriba junto a los otros imports)
-import ScanScreen from './src/screens/ScanScreen'; // <--- AGREGA ESTO ARRIBA
+import React from 'react';
+import { View, Text } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+
+// --- IMPORTAMOS TUS PANTALLAS ---
+import HomeScreen from './src/screens/HomeScreen';
+import ScanScreen from './src/screens/ScanScreen';
+
+// Si no tienes ProfileScreen creado, usa este temporal para que no falle:
+function PlaceholderScreen() {
+  return (
+    <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center'}}>
+      <Text style={{color:'#FFF'}}>Perfil (Próximamente)</Text>
+    </View>
+  );
+}
+// Si TIENES un archivo ProfileScreen, descomenta la linea de abajo y borra la funcion de arriba:
+// import ProfileScreen from './src/screens/ProfileScreen';
+
+const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const insets = useSafeAreaInsets(); 
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -19,48 +42,26 @@ function MainTabs() {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: any;
           if (route.name === 'Hoy') iconName = focused ? 'flash' : 'flash-outline';
-          else if (route.name === 'Semana') iconName = focused ? 'calendar' : 'calendar-outline';
+          else if (route.name === 'Escanear') iconName = focused ? 'scan-circle' : 'scan-outline';
           else if (route.name === 'Mi Cuenta') iconName = focused ? 'person' : 'person-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
       <Tab.Screen name="Hoy" component={HomeScreen} />
-      <Tab.Screen name="Semana" component={CalendarScreen} />
-      <Tab.Screen name="Mi Cuenta" component={ProfileScreen} />
+      <Tab.Screen name="Escanear" component={ScanScreen} />
+      {/* Usamos PlaceholderScreen para evitar errores si no tienes ProfileScreen aún */}
+      <Tab.Screen name="Mi Cuenta" component={PlaceholderScreen} />
     </Tab.Navigator>
   );
 }
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  useEffect(() => { checkFirstLaunch(); }, []);
-
-  const checkFirstLaunch = async () => {
-    // Si quieres probar la bienvenida otra vez, descomenta la linea de abajo:
-    // await DataService.resetOnboarding(); 
-    const isDone = await DataService.hasCompletedOnboarding();
-    setShowOnboarding(!isDone);
-    setIsLoading(false);
-  };
-
-  if (isLoading) {
-    return (
-      <View style={{flex:1, backgroundColor:'#000', justifyContent:'center', alignItems:'center'}}>
-        <ActivityIndicator size="large" color="#D4AF37" />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {showOnboarding ? ( <Stack.Screen name="Onboarding" component={OnboardingScreen} /> ) : null}
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        </Stack.Navigator>
+        <StatusBar style="light" />
+        <MainTabs />
       </NavigationContainer>
     </SafeAreaProvider>
   );
