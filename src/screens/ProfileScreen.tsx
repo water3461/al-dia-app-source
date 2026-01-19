@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
 import { DataService, BankCard } from '../services/DataService';
-import { NotificationService } from '../services/NotificationService'; // <--- IMPORTANTE
+import { NotificationService } from '../services/NotificationService';
 
 export default function ProfileScreen() {
   const [banks, setBanks] = useState<BankCard[]>([]);
@@ -31,19 +31,14 @@ export default function ProfileScreen() {
     await DataService.saveHiddenBanks(newHiddenList);
   };
 
-  // --- NUEVA LÓGICA DE NOTIFICACIONES ---
   const handleNotifications = async () => {
     const hasPermission = await NotificationService.requestPermissions();
-    
     if (hasPermission) {
-      // 1. Enviar prueba inmediata
       await NotificationService.testNotification();
-      // 2. Dejar programada la de mañana
       await NotificationService.scheduleDailyReminder();
-      
-      Alert.alert("✅ Activadas", "Te avisaremos todos los días a las 9:00 AM. (Te enviamos una prueba ahora).");
+      Alert.alert("✅ Activadas", "Te avisaremos todos los días a las 9:00 AM.");
     } else {
-      Alert.alert("⚠️ Permiso denegado", "Necesitas activar las notificaciones en la configuración de tu celular.");
+      Alert.alert("⚠️ Permiso denegado", "Necesitas activar las notificaciones en la configuración.");
     }
   };
 
@@ -80,7 +75,9 @@ export default function ProfileScreen() {
               const isActive = !hiddenBanks.includes(bank.id);
               return (
                 <View key={bank.id} style={[styles.optionRow, index > 0 && styles.separator]}>
+                  {/* PUNTO DE COLOR CON BORDE PARA QUE SE VEA EL NEGRO */}
                   <View style={[styles.colorDot, { backgroundColor: bank.primary_color }]} />
+                  
                   <Text style={styles.optionText}>{bank.name}</Text>
                   <Switch
                     trackColor={{ false: "#333", true: "#D4AF37" }}
@@ -94,11 +91,9 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* BOTONES DE ACCIÓN REALES */}
         <Text style={styles.sectionTitle}>PREFERENCIAS</Text>
         <View style={styles.optionsContainer}>
           
-          {/* BOTÓN NOTIFICACIONES */}
           <TouchableOpacity style={styles.optionRow} onPress={handleNotifications}>
             <Text style={styles.optionIcon}>🔔</Text>
             <Text style={styles.optionText}>Activar Notificaciones Diarias</Text>
@@ -133,7 +128,17 @@ const styles = StyleSheet.create({
   optionsContainer: { backgroundColor: '#1C1C1E', borderRadius: 15, marginBottom: 20, overflow: 'hidden' },
   optionRow: { flexDirection: 'row', alignItems: 'center', padding: 15 },
   separator: { borderTopWidth: 1, borderTopColor: '#2C2C2E' },
-  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 15 },
+  
+  // AQUÍ ESTÁ EL FIX DEL BORDE
+  colorDot: { 
+    width: 12, 
+    height: 12, 
+    borderRadius: 6, 
+    marginRight: 15,
+    borderWidth: 1,      // <-- Borde
+    borderColor: '#888'  // <-- Gris claro
+  },
+
   optionIcon: { fontSize: 20, marginRight: 15, width: 30, textAlign: 'center' },
   optionText: { color: '#FFF', fontSize: 16, flex: 1, fontWeight: '500' },
   arrow: { color: '#666', fontSize: 20, fontWeight: 'bold' },
