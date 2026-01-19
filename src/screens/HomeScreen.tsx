@@ -19,6 +19,7 @@ export default function HomeScreen() {
     const rulesData = await DataService.getDailyRules();
     const banksData = await DataService.getBanks();
     const hiddenBanks = await DataService.getHiddenBanks();
+
     const filteredRules = rulesData.filter(r => !hiddenBanks.includes(r.issuer_id));
 
     setRules(filteredRules);
@@ -56,11 +57,10 @@ export default function HomeScreen() {
         ) : rules.length > 0 ? (
           rules.map((item, index) => {
             const bank = getBank(item.issuer_id);
-            // Si no encuentra el banco, usa gris oscuro
             const bgColor = bank ? bank.primary_color : '#1C1C1E';
             const bankName = bank ? bank.name : item.issuer_id;
             
-            // Inicial (Si no hay nombre, usa "?")
+            // TRUCO: Obtenemos la primera letra del banco (Ej: "S" de Santander)
             const initial = bankName ? bankName.charAt(0).toUpperCase() : "?";
 
             return (
@@ -68,10 +68,9 @@ export default function HomeScreen() {
                 
                 <View style={styles.cardHeader}>
                   <View style={styles.bankIdentity}>
-                    
-                    {/* LOGO DE ALTO CONTRASTE (Amarillo con letra Negra) */}
+                    {/* LOGO GENERADO AUTOMÁTICAMENTE (Círculo Blanco + Letra) */}
                     <View style={styles.logoPlaceholder}>
-                      <Text style={styles.logoText}>{initial}</Text>
+                      <Text style={[styles.logoText, { color: bgColor }]}>{initial}</Text>
                     </View>
                     
                     <Text style={styles.cardBankName}>{bankName}</Text>
@@ -118,22 +117,20 @@ const styles = StyleSheet.create({
   
   bankIdentity: { flexDirection: 'row', alignItems: 'center' },
   
-  // ESTILO GARANTIZADO
+  // ESTILO DEL NUEVO LOGO AUTOMÁTICO
   logoPlaceholder: { 
-    width: 30, 
-    height: 30, 
-    borderRadius: 15, 
-    backgroundColor: '#D4AF37', // AMARILLO DORADO (Muy visible)
+    width: 28, 
+    height: 28, 
+    borderRadius: 14, 
+    backgroundColor: 'white', // Círculo blanco puro
     justifyContent: 'center', 
     alignItems: 'center', 
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#000'
+    marginRight: 10 
   },
   logoText: { 
-    color: '#000000', // NEGRO (Contraste máximo)
     fontWeight: '900', 
-    fontSize: 16
+    fontSize: 16,
+    // El color del texto será el mismo del fondo de la tarjeta para dar efecto "recortado"
   },
   
   cardBankName: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 14, textTransform: 'uppercase' },
