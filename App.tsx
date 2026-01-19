@@ -1,19 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import HomeScreen from './src/screens/HomeScreen';
-import CalendarScreen from './src/screens/CalendarScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
-import OnboardingScreen from './src/screens/OnboardingScreen';
-import { DataService } from './src/services/DataService';
-
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+// ... (Asegúrate de importar ScanScreen arriba junto a los otros imports)
+import ScanScreen from './src/screens/ScanScreen'; // <--- AGREGA ESTO ARRIBA
 
 function MainTabs() {
   const insets = useSafeAreaInsets(); 
