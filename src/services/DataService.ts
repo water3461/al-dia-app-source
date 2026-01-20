@@ -17,13 +17,23 @@ export interface BankCard {
   primary_color: string;
 }
 
+// 👇 NUEVO: Estructura de una Boleta guardada
+export interface Receipt {
+  id: string;
+  date: string;
+  commerce: string;
+  total: number;
+  scannedAt: number; // Fecha real de cuando escaneaste (timestamp)
+}
+
 // Claves para guardar en la memoria del celular
 const STORAGE_KEYS = {
   HIDDEN_BANKS: 'user_hidden_banks',
   ONBOARDING_DONE: 'user_onboarding_complete',
+  RECEIPTS_HISTORY: 'user_receipts_history', // 👈 Nueva clave
 };
 
-// DATOS FIJOS (Simulamos una base de datos real)
+// DATOS FIJOS (Bancos y Reglas - Igual que antes)
 const MOCK_BANKS: BankCard[] = [
   { id: 'banco_chile', name: 'Banco de Chile', type: 'bank', primary_color: '#002464' },
   { id: 'santander', name: 'Santander', type: 'bank', primary_color: '#EC0000' },
@@ -53,70 +63,86 @@ const MOCK_RULES: Rule[] = [
 
 export const DataService = {
   
-  // Obtener lista de bancos disponibles
+  // --- FUNCIONES BÁSICAS ---
   getBanks: async (): Promise<BankCard[]> => {
-    // Simulamos un pequeño retardo de red
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_BANKS), 500);
-    });
+    return new Promise((resolve) => setTimeout(() => resolve(MOCK_BANKS), 100));
   },
 
-  // Obtener reglas del día
   getDailyRules: async (): Promise<Rule[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_RULES), 500);
-    });
+    return new Promise((resolve) => setTimeout(() => resolve(MOCK_RULES), 100));
   },
 
-  // --- NUEVAS FUNCIONES CON MEMORIA REAL (AsyncStorage) ---
-
-  // 1. Guardar qué bancos NO tiene el usuario
+  // --- MEMORIA DE BANCOS (Configuración) ---
   saveHiddenBanks: async (hiddenIds: string[]) => {
     try {
       const jsonValue = JSON.stringify(hiddenIds);
       await AsyncStorage.setItem(STORAGE_KEYS.HIDDEN_BANKS, jsonValue);
-      console.log('Guardado en memoria:', hiddenIds);
-    } catch (e) {
-      console.error('Error guardando bancos', e);
-    }
+    } catch (e) { console.error(e); }
   },
 
-  // 2. Leer qué bancos NO tiene el usuario
   getHiddenBanks: async (): Promise<string[]> => {
     try {
       const jsonValue = await AsyncStorage.getItem(STORAGE_KEYS.HIDDEN_BANKS);
       return jsonValue != null ? JSON.parse(jsonValue) : [];
-    } catch (e) {
-      console.error('Error leyendo bancos', e);
-      return [];
-    }
+    } catch (e) { return []; }
   },
 
-  // 3. Marcar que ya vimos la bienvenida
   completeOnboarding: async () => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_DONE, 'true');
-    } catch (e) {
-      console.error('Error guardando onboarding', e);
-    }
+    try { await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_DONE, 'true'); } catch (e) {}
   },
 
-  // 4. Preguntar si ya vimos la bienvenida
   isOnboardingComplete: async (): Promise<boolean> => {
     try {
       const value = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_DONE);
       return value === 'true';
-    } catch (e) {
+    } catch (e) { return false; }
+  },
+
+  clearAllData: async () => {
+    try { await AsyncStorage.clear(); } catch(e) {}
+  },
+
+  // --- 👇 NUEVO: HISTORIAL DE GASTOS ---
+
+  // 1. Guardar una nueva boleta
+  addReceipt: async (receipt: Omit<Receipt, 'id' | 'scannedAt'>) => {
+    try {
+      // Obtenemos las actuales
+      const existing = await DataService.getReceipts();
+      
+      // Creamos la nueva con ID único y fecha actual
+      const newReceipt: Receipt = {
+        ...receipt,
+        id: Date.now().toString(), // Usamos la hora como ID único
+        scannedAt: Date.now()
+      };
+
+      // Guardamos la lista actualizada (Nueva primero)
+      const updatedList = [newReceipt, ...existing];
+      await AsyncStorage.setItem(STORAGE_KEYS.RECEIPTS_HISTORY, JSON.stringify(updatedList));
+      console.log('Boleta guardada:', newReceipt);
+      return true;
+    } catch (error) {
+      console.error('Error guardando boleta:', error);
       return false;
     }
   },
 
-  // 5. Borrar todo (útil para cerrar sesión o reiniciar)
-  clearAllData: async () => {
+  // 2. Leer todas las boletas
+  getReceipts: async (): Promise<Receipt[]> => {
     try {
-      await AsyncStorage.clear();
-    } catch(e) {
-      console.error(e);
+      const jsonValue = await AsyncStorage.getItem(STORAGE_KEYS.RECEIPTS_HISTORY);
+      return jsonValue != null ? JSON.parse(jsonValue) : [];
+    } catch (error) {
+      console.error('Error leyendo boletas:', error);
+      return [];
     }
+  },
+
+  // 3. Borrar historial (para debug)
+  clearReceipts: async () => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.RECEIPTS_HISTORY);
+    } catch (e) {}
   }
 };
