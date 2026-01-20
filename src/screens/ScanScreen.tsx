@@ -4,9 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
-// Importamos el servicio de IA y el de Datos
 import { OCRService } from '../services/ocr';
-import { DataService } from '../services/DataService'; // 👈 IMPORTANTE
+import { DataService } from '../services/DataService';
 
 export default function ScanScreen({ navigation }: any) {
   const [image, setImage] = useState<string | null>(null);
@@ -46,23 +45,22 @@ export default function ScanScreen({ navigation }: any) {
     try {
       console.log("🧠 Iniciando escaneo con IA...");
 
-      // A. La IA lee la imagen
-      const data = await OCRService.analyzeReceiptFromImage(image);
+      // Agregamos el signo ! para asegurar que image no es null
+      const data = await OCRService.analyzeReceiptFromImage(image!);
 
       setUploading(false);
 
-      // B. Mostramos resultado y preguntamos si quiere guardar
       Alert.alert(
         "¡Lectura Exitosa! 🤖",
-        `📅 Fecha: ${data.date || 'Hoy'}\n🏪 Comercio: ${data.commerce}\n💰 Total: $${data.total || 0}`,
+        `📅 Fecha: ${data.date || 'Hoy'}\n🏪 Comercio: ${data.commerce || 'Desconocido'}\n💰 Total: $${data.total || 0}`,
         [
           { text: "Cancelar", style: "cancel" },
           { 
             text: "GUARDAR GASTO", 
             onPress: async () => {
-              // C. Guardamos en la Base de Datos
+              // AQUÍ ESTABA EL ERROR: Agregamos valores por defecto (||) para evitar nulls
               await DataService.addReceipt({
-                commerce: data.commerce,
+                commerce: data.commerce || "Comercio Desconocido", 
                 date: data.date || new Date().toLocaleDateString(),
                 total: data.total || 0
               });
@@ -92,7 +90,6 @@ export default function ScanScreen({ navigation }: any) {
 
       <View style={styles.content}>
         {image ? (
-          // --- VISTA PREVIA ---
           <View style={styles.previewContainer}>
             <Image source={{ uri: image }} style={styles.imagePreview} />
             
@@ -113,7 +110,6 @@ export default function ScanScreen({ navigation }: any) {
             </View>
           </View>
         ) : (
-          // --- ESTADO VACÍO ---
           <View style={styles.emptyState}>
             <View style={styles.iconCircle}>
               <Ionicons name="document-text-outline" size={60} color="#333" />
@@ -129,7 +125,6 @@ export default function ScanScreen({ navigation }: any) {
         )}
       </View>
 
-      {/* OVERLAY DE CARGA */}
       {uploading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#D4AF37" />
