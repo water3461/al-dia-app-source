@@ -43,8 +43,8 @@ export default function OnboardingScreen({ navigation }: any) {
     // 2. Marcamos que ya terminó la bienvenida
     await DataService.completeOnboarding();
     
-    // 3. Navegamos al Home reemplazando la pantalla actual
-    navigation.replace('MainTabs');
+    // 3. CORREGIDO: Navegamos a 'Main' (que es el nombre correcto en App.tsx)
+    navigation.replace('Main');
   };
 
   return (
@@ -71,7 +71,7 @@ export default function OnboardingScreen({ navigation }: any) {
                 ]}
                 onPress={() => toggleBank(bank.id)}
               >
-                {/* FIX: Círculo con borde para que se vea el negro */}
+                {/* Círculo con borde para que se vea el negro */}
                 <View style={[styles.dot, { backgroundColor: bank.primary_color }]} />
                 
                 <Text style={[styles.bankName, isSelected && { color: '#D4AF37', fontWeight: 'bold' }]}>
