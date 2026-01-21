@@ -1,4 +1,4 @@
-import 'dotenv/config'; // Carga las variables locales si estás probando en tu PC
+import 'dotenv/config';
 
 export default {
   expo: {
@@ -24,10 +24,11 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      // ⚠️ IMPORTANTE: Verifica que este sea tu nombre de paquete real
+      // ⚠️ Asegúrate de que este sea el mismo paquete que usaste antes.
+      // Si Expo se queja de "package mismatch", cámbialo aquí.
       package: "com.aldia.app", 
       
-      // Permisos para OCR (Cámara/Archivos) y Mapas
+      // Permisos necesarios para que la app no se cierre
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -36,7 +37,7 @@ export default {
         "ACCESS_FINE_LOCATION"
       ],
       
-      // CONFIGURACIÓN DE MAPAS (La parte crítica que fallaba)
+      // Inyección de la clave de mapas en Android
       config: {
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_KEY
@@ -47,15 +48,13 @@ export default {
       favicon: "./assets/favicon.png"
     },
     
-    // Aquí pasamos las variables al código Javascript de la App
+    // Variables extra para el código JS
     extra: {
       apiUrl: process.env.API_URL,
-      googleMapsKey: process.env.GOOGLE_MAPS_KEY,
-      eas: {
-        projectId: "tu-project-id-de-expo" // (Opcional, Expo lo suele llenar solo)
-      }
+      googleMapsKey: process.env.GOOGLE_MAPS_KEY
     },
     
+    // Configuración del plugin de cámara (requerido para el OCR)
     plugins: [
       [
         "expo-camera",
