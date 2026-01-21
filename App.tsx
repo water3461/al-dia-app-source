@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-// 👇 1. Importamos el hook useSafeAreaInsets
+// 👇 IMPORTANTE: Importamos esto para evitar que la barra blanca tape los botones
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -23,7 +23,7 @@ const Stack = createStackNavigator();
 
 // --- BARRA INFERIOR (TABS) ---
 function MainTabs() {
-  // 👇 2. Calculamos los espacios seguros del celular actual
+  // 👇 Calculamos el espacio seguro para tu S25 Ultra
   const insets = useSafeAreaInsets();
 
   return (
@@ -33,9 +33,9 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#000000',
           borderTopColor: '#333333',
-          // 👇 3. Altura dinámica: 60px + el espacio del sistema
+          // 👇 Altura dinámica: 60px + el espacio que necesite el sistema
           height: 60 + insets.bottom, 
-          // 👇 4. Empujamos los botones hacia arriba
+          // 👇 Empujamos los botones hacia arriba para que no los tape la barra blanca
           paddingBottom: insets.bottom > 0 ? insets.bottom : 8, 
           paddingTop: 8,
         },
@@ -49,7 +49,8 @@ function MainTabs() {
           } else if (route.name === 'Escanear') {
             iconName = focused ? 'scan-circle' : 'scan-circle-outline';
             size = 32; 
-          } else if (route.name === 'Perfil') {
+          // 👇 CORRECCIÓN: Ahora buscamos "Profile" en inglés
+          } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
 
@@ -59,7 +60,14 @@ function MainTabs() {
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
       <Tab.Screen name="Escanear" component={ScanScreen} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} />
+      
+      {/* 👇 CORRECCIÓN CLAVE: Nombre interno "Profile", Título visible "Perfil" */}
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen} 
+        options={{ title: 'Perfil' }} 
+      />
+      
     </Tab.Navigator>
   );
 }
