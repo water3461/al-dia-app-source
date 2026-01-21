@@ -24,11 +24,8 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      // ⚠️ Asegúrate de que este sea el mismo paquete que usaste antes.
-      // Si Expo se queja de "package mismatch", cámbialo aquí.
       package: "com.aldia.app", 
       
-      // Permisos necesarios para que la app no se cierre
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -37,7 +34,6 @@ export default {
         "ACCESS_FINE_LOCATION"
       ],
       
-      // Inyección de la clave de mapas en Android
       config: {
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_KEY
@@ -48,13 +44,15 @@ export default {
       favicon: "./assets/favicon.png"
     },
     
-    // Variables extra para el código JS
     extra: {
       apiUrl: process.env.API_URL,
-      googleMapsKey: process.env.GOOGLE_MAPS_KEY
+      googleMapsKey: process.env.GOOGLE_MAPS_KEY,
+      // 👇 AQUÍ ESTÁ EL ID QUE FALTABA
+      eas: {
+        projectId: "2cd121eb-06d4-49dc-bdb8-dc5a23f63a4a"
+      }
     },
     
-    // Configuración del plugin de cámara (requerido para el OCR)
     plugins: [
       [
         "expo-camera",
