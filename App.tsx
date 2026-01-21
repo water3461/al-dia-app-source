@@ -12,7 +12,7 @@ import ScanScreen from './src/screens/ScanScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import EditBanksScreen from './src/screens/EditBanksScreen';
-import HistoryScreen from './src/screens/HistoryScreen'; // 👈 NUEVO IMPORT
+import HistoryScreen from './src/screens/HistoryScreen';
 
 // Importamos servicios
 import { DataService } from './src/services/DataService';
@@ -79,17 +79,13 @@ export default function App() {
         <StatusBar style="light" />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           
-          {/* Si el usuario es nuevo, mostramos Onboarding primero */}
           {isOnboarding && (
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           )}
           
-          {/* Flujo Principal */}
           <Stack.Screen name="Main" component={MainTabs} />
-          
-          {/* Pantallas Secundarias (que tapan el menú inferior) */}
           <Stack.Screen name="EditBanks" component={EditBanksScreen} />
-          <Stack.Screen name="History" component={HistoryScreen} />  {/* 👈 NUEVA RUTA */}
+          <Stack.Screen name="History" component={HistoryScreen} />
 
         </Stack.Navigator>
       </NavigationContainer>
