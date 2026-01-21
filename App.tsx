@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+// 👇 1. Importamos el hook useSafeAreaInsets
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
@@ -22,6 +23,9 @@ const Stack = createStackNavigator();
 
 // --- BARRA INFERIOR (TABS) ---
 function MainTabs() {
+  // 👇 2. Calculamos los espacios seguros del celular actual
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -29,8 +33,10 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#000000',
           borderTopColor: '#333333',
-          height: 60,
-          paddingBottom: 8,
+          // 👇 3. Altura dinámica: 60px + el espacio del sistema
+          height: 60 + insets.bottom, 
+          // 👇 4. Empujamos los botones hacia arriba
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8, 
           paddingTop: 8,
         },
         tabBarActiveTintColor: '#D4AF37',
