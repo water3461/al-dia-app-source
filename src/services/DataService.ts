@@ -1,15 +1,34 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// --- 1. DEFINICIÓN DE TIPOS (ESTO ARREGLA LOS ERRORES ROJOS) ---
 export interface Rule {
-  id: string; store: string; discount: string; bank: string; cardType: string; day: string; days?: string[];
-}
-export interface BankCard {
-  id: string; name: string; primary_color: string; rules: Rule[];
+  id: string;
+  store: string;
+  discount: string;
+  bank: string;
+  cardType: string;
+  day: string;
+  days?: string[];
 }
 
-// --- LISTA REAL CHILE 2026 ---
+export interface BankCard {
+  id: string;
+  name: string;
+  primary_color: string;
+  rules: Rule[];
+}
+
+export interface Receipt {
+  id: string;
+  store: string;
+  total: number;
+  date: string;
+  items?: string[];
+  scannedAt: number;
+}
+
+// --- 2. DATOS MOCK (CHILE) ---
 const MOCK_BANKS: BankCard[] = [
-  // FINTECHS
   {
     id: 'tenpo', name: 'Tenpo', primary_color: '#00D6FF', 
     rules: [
@@ -31,7 +50,6 @@ const MOCK_BANKS: BankCard[] = [
       { id: 'mp2', store: 'Cineplanet', discount: '2x1', bank: 'MercadoPago', cardType: 'Tarjeta', day: 'Miércoles', days: ['Miércoles'] }
     ]
   },
-  // RETAIL
   {
     id: 'falabella', name: 'CMR Falabella', primary_color: '#128C41',
     rules: [
@@ -53,7 +71,6 @@ const MOCK_BANKS: BankCard[] = [
       { id: 'cen2', store: 'Santa Isabel', discount: '15%', bank: 'Cencosud', cardType: 'TC', day: 'Miércoles', days: ['Miércoles'] }
     ]
   },
-  // TRADICIONALES
   {
     id: 'banco_chile', name: 'Banco de Chile', primary_color: '#002C77',
     rules: [
@@ -74,25 +91,93 @@ const MOCK_BANKS: BankCard[] = [
       { id: 'be1', store: 'Dr. Simi', discount: '40%', bank: 'Estado', cardType: 'Todo', day: 'Lunes', days: ['Lunes'] },
       { id: 'be2', store: 'JetSmart', discount: 'Sin Interés', bank: 'Estado', cardType: 'TC', day: 'Todos', days: ['Viernes', 'Sábado'] }
     ]
+  },
+  {
+    id: 'bci', name: 'BCI', primary_color: '#00A69C',
+    rules: [
+      { id: 'bc1', store: 'Salcobrand', discount: '20%', bank: 'BCI', cardType: 'Todas', day: 'Lunes y Martes', days: ['Lunes', 'Martes'] },
+      { id: 'bc2', store: 'Cabify', discount: '30%', bank: 'BCI', cardType: 'TC', day: 'Viernes', days: ['Viernes'] }
+    ]
   }
 ];
 
+// --- 3. EL SERVICIO (LÓGICA) ---
 export const DataService = {
-  getBanks: async () => MOCK_BANKS,
-  getHiddenBanks: async () => {
+  
+  // Obtener lista completa de bancos
+  getBanks: async (): Promise<BankCard[]> => {
+    return MOCK_BANKS;
+  },
+
+  // Obtener bancos ocultos (preferencia de usuario)
+  getHiddenBanks: async (): Promise<string[]> => {
     try {
       const data = await AsyncStorage.getItem('HIDDEN_BANKS');
       return data ? JSON.parse(data) : [];
     } catch { return []; }
   },
+
   saveHiddenBanks: async (ids: string[]) => {
     await AsyncStorage.setItem('HIDDEN_BANKS', JSON.stringify(ids));
   },
+
+  // 👇 ESTO FALTABA: Obtener reglas filtradas por el día de hoy
+  getDailyRules: async (): Promise<Rule[]> => {
+    const today = new Date().toLocaleDateString('es-CL', { weekday: 'long' });
+    const capitalizedToday = today.charAt(0).toUpperCase() + today.slice(1); // ej: "Viernes"
+    
+    const hiddenIds = await DataService.getHiddenBanks();
+
+    let validRules: Rule[] = [];
+    
+    MOCK_BANKS.forEach(bank => {
+      // Solo si el banco NO está oculto
+      if (!hiddenIds.includes(bank.id)) {
+        // Filtramos reglas que coincidan con hoy
+        const rulesForToday = bank.rules.filter(r => 
+          r.day === capitalizedToday || 
+          r.day === 'Todos' || 
+          (r.days && r.days.includes(capitalizedToday))
+        );
+        validRules = [...validRules, ...rulesForToday];
+      }
+    });
+    
+    return validRules;
+  },
+
+  // 👇 ESTO ARREGLA EL ERROR 'Property total does not exist on type never'
+  getHistory: async (): Promise<Receipt[]> => {
+    try {
+      const data = await AsyncStorage.getItem('HISTORY');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return []; // Devuelve array vacío, pero TIPADO como Receipt[]
+    }
+  },
+
+  saveReceipt: async (receiptData: Omit<Receipt, 'id' | 'scannedAt'>) => {
+    const newReceipt: Receipt = {
+      ...receiptData,
+      id: Date.now().toString(),
+      scannedAt: Date.now()
+    };
+    
+    const currentHistory = await DataService.getHistory();
+    const updatedHistory = [newReceipt, ...currentHistory];
+    
+    await AsyncStorage.setItem('HISTORY', JSON.stringify(updatedHistory));
+    return newReceipt;
+  },
+
+  clearReceipts: async () => {
+    await AsyncStorage.removeItem('HISTORY');
+  },
+
+  // Onboarding
   completeOnboarding: async () => AsyncStorage.setItem('ONBOARDING_COMPLETE', 'true'),
   isOnboardingComplete: async () => (await AsyncStorage.getItem('ONBOARDING_COMPLETE')) === 'true',
-  resetAll: async () => AsyncStorage.clear(),
-  // Helpers para evitar errores de compilación
-  getHistory: async () => [],
-  saveReceipt: async (r: any) => r,
-  clearReceipts: async () => {}
+  
+  // Reset
+  resetAll: async () => AsyncStorage.clear()
 };
