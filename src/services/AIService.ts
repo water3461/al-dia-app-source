@@ -1,18 +1,26 @@
-// 🔴 1. PEGA TU API KEY AQUÍ (Asegúrate de no dejar espacios extra al final)
+// 🔴 1. PEGA TU API KEY AQUÍ
 const API_KEY = "AIzaSyCBSHrAhlmeuEtp7KyEldwRwCbbexjqG0A"; 
 
-// Lista de modelos que intentaremos usar (si falla uno, usa el siguiente)
-const VISION_MODELS = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
-const CHAT_MODELS = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-flash-8b"];
+// LISTA BLINDADA DE MODELOS (Probamos del más nuevo al más viejo)
+// Usamos versiones específicas (-001, -002) que son menos propensas a fallar que los alias.
+const MODELS_TO_TRY = [
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-001",
+  "gemini-1.5-flash-002",
+  "gemini-1.5-pro",
+  "gemini-1.5-pro-001",
+  "gemini-pro" // El viejo confiable (si todo lo demás falla)
+];
 
-// Función auxiliar para probar varios modelos hasta que uno funcione
-async function tryGoogleAI(models: string[], prompt: string, imageBase64?: string) {
+// Función que prueba puerta por puerta
+async function tryGoogleAI(prompt: string, imageBase64?: string) {
   let lastError = null;
 
-  for (const model of models) {
+  for (const model of MODELS_TO_TRY) {
     try {
-      console.log(`Intentando conectar con cerebro: ${model}...`);
+      console.log(`Intentando conectar con: ${model}...`);
       
+      // Probamos con la versión v1beta que es la más compatible hoy
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
       
       const requestBody: any = {
@@ -21,7 +29,6 @@ async function tryGoogleAI(models: string[], prompt: string, imageBase64?: strin
         }]
       };
 
-      // Si hay imagen, la agregamos al cuerpo del mensaje
       if (imageBase64) {
         requestBody.contents[0].parts.push({
           inline_data: { mime_type: "image/jpeg", data: imageBase64 }
@@ -36,66 +43,65 @@ async function tryGoogleAI(models: string[], prompt: string, imageBase64?: strin
 
       const data = await response.json();
 
-      // Si Google devuelve error explícito, lanzamos excepción para probar el siguiente modelo
-      if (data.error) throw new Error(data.error.message);
+      // Si Google dice "Not Found" o error, pasamos al siguiente modelo
+      if (data.error) {
+        console.warn(`❌ ${model} falló: ${data.error.message}`);
+        throw new Error(data.error.message);
+      }
 
-      // Si llegamos aquí, ¡ÉXITO! Devolvemos el texto
+      // ¡ÉXITO!
+      console.log(`✅ ¡Conectado con éxito a ${model}!`);
       return data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     } catch (error: any) {
-      console.log(`Fallo el modelo ${model}: ${error.message}`);
       lastError = error;
-      // Continuamos al siguiente modelo del bucle...
+      // El bucle continuará automáticamente con el siguiente modelo de la lista
     }
   }
   
-  // Si fallaron todos
+  // Si llegamos aquí, fallaron los 6 modelos
   throw lastError;
 }
 
 export const AIService = {
   
-  // 1. ANALIZAR BOLETA (CÁMARA)
+  // 1. ANALIZAR BOLETA
   analyzeReceipt: async (base64Image: string) => {
     try {
       if (API_KEY.includes("TU_API_KEY")) return null;
 
-      const prompt = "Analiza esta imagen. Responde SOLAMENTE con un JSON puro (sin markdown, sin comillas extra) con este formato: { \"store\": \"nombre tienda\", \"date\": \"dd/mm/yyyy\", \"total\": numero }. Si no es una boleta, devuelve null.";
+      const prompt = "Analiza esta imagen. Responde SOLAMENTE con un JSON válido y minificado: {\"store\": \"string\", \"date\": \"dd/mm/yyyy\", \"total\": number}. Si no es boleta, null.";
       
-      // Intentamos con la lista de modelos de visión
-      const textResponse = await tryGoogleAI(VISION_MODELS, prompt, base64Image);
+      const textResponse = await tryGoogleAI(prompt, base64Image);
       
       if (!textResponse) return null;
 
-      // Limpieza agresiva del JSON
-      const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanJson = textResponse.replace(/```json|```/g, '').trim();
       return JSON.parse(cleanJson);
 
     } catch (error) {
-      console.error("Error definitivo IA Vision:", error);
+      console.error("☠️ Murió el análisis:", error);
       return null;
     }
   },
 
-  // 2. CHAT CON EL ASISTENTE
+  // 2. CHAT ASISTENTE
   chatWithAI: async (userMessage: string, context: string) => {
     try {
-      if (API_KEY.includes("TU_API_KEY")) return "⚠️ Error: Falta la API Key en AIService.ts";
+      if (API_KEY.includes("TU_API_KEY")) return "⚠️ Falta la API Key en el código.";
 
       const prompt = `
-        Eres 'Al Día', un asesor financiero chileno.
-        CONTEXTO DEL USUARIO: ${context}
-        PREGUNTA: "${userMessage}"
-        Responde breve, usa modismos chilenos (cachái, lucas) y sé útil.
+        Actúa como 'Al Día', asesor financiero chileno.
+        CONTEXTO: ${context}
+        USUARIO: "${userMessage}"
+        Responde corto, útil y en chileno.
       `;
 
-      // Intentamos con la lista de modelos de chat
-      const response = await tryGoogleAI(CHAT_MODELS, prompt);
-      
-      return response || "Se me fue la onda. Intenta de nuevo.";
+      const response = await tryGoogleAI(prompt);
+      return response || "Se me fue la señal. Intenta de nuevo.";
 
     } catch (error) {
-      return "No logré conectar con ningún cerebro de Google. Revisa tu API Key o Internet. 🔌";
+      return "No logré conectar con Google. Revisa tu internet o la API Key.";
     }
   }
 };
