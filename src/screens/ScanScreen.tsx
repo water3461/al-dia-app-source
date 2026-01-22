@@ -1,180 +1,131 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
+// 👇 USAMOS LO NUEVO: CameraView
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-
-import { OCRService } from '../services/ocr';
+import { useNavigation } from '@react-navigation/native';
 import { DataService } from '../services/DataService';
 
-export default function ScanScreen({ navigation }: any) {
-  const [image, setImage] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+export default function ScanScreen() {
+  const navigation = useNavigation();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const cameraRef = useRef<CameraView>(null);
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert("Permiso requerido", "Necesitamos la cámara para ver el local.");
-      return;
+  useEffect(() => {
+    if (permission && !permission.granted) {
+      requestPermission();
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled) setImage(result.assets[0].uri);
-  };
+  }, [permission]);
 
-  const clearImage = () => setImage(null);
-
-  const handleAnalyze = async () => {
-    if (!image) return;
-    setUploading(true);
-
+  const takePicture = async () => {
+    if (!cameraRef.current) return;
     try {
-      // 1. La IA lee TODO lo que ve (Letrero o Boleta)
-      const data = await OCRService.analyzeReceiptFromImage(image!);
-      const rawTextLower = data.rawText.toLowerCase(); // Texto crudo en minúsculas
+      setIsProcessing(true);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
       
-      // 2. BUSCAMOS SI HAY UN COMERCIO CONOCIDO EN EL TEXTO
-      const allRules = await DataService.getDailyRules();
+      console.log("Foto tomada. Procesando...");
       
-      // Buscamos si alguna marca (ej: "starbucks") está en el texto de la foto
-      const detectedRule = allRules.find(rule => 
-        rawTextLower.includes(rule.commerce_name.toLowerCase())
-      );
-
-      setUploading(false);
-
-      // --- CASO A: ES UN LOCAL (DETECTAMOS LA MARCA, PERO NO HAY TOTAL) ---
-      // Si encontramos la marca Y el total es 0 (o muy bajo/confuso), asumimos que es el letrero.
-      if (detectedRule && (!data.total || data.total === 0)) {
-        
-        Alert.alert(
-          `📍 ¡Estás en ${detectedRule.commerce_name}!`,
-          `\n💳 **TARJETA RECOMENDADA:**\nBanco ${detectedRule.issuer_id.toUpperCase()}\n\n🎁 **Beneficio:** ${detectedRule.benefit_value}\n💡 **Tip:** ${detectedRule.smart_tip}`,
-          [
-            { text: "¡Gracias!", onPress: clearImage, style: "default" }
-          ]
-        );
-        return; // Terminamos aquí, no guardamos nada porque aún no compras.
-      }
-
-      // --- CASO B: ES UNA BOLETA (HAY TOTAL Y FECHA) ---
-      const commerceName = data.commerce || (detectedRule ? detectedRule.commerce_name : "Comercio Desconocido");
-      
-      // Preparamos el mensaje tipo "Coach"
-      let title = "🧾 Boleta Procesada";
-      let body = `📅 Fecha: ${data.date || 'Hoy'}\n🏪 Comercio: ${commerceName}\n💰 Total: $${(data.total || 0).toLocaleString('es-CL')}`;
-      let alertLog = "";
-
-      // Verificamos si tenías descuento (usando la lógica anterior)
-      const missedBenefit = await DataService.checkBenefit(commerceName);
-
-      if (missedBenefit) {
-        title = "💡 Tip para la próxima";
-        body += `\n\n✨ ¿Sabías que ${commerceName} tiene dcto con Banco ${missedBenefit.issuer_id.toUpperCase()}?\nLa próxima vez inténtalo y ahorra. 😉`;
-        alertLog = `Oportunidad: ${missedBenefit.benefit_value}`;
-      }
-
-      Alert.alert(
-        title,
-        body,
-        [
-          { text: "Cancelar", style: "cancel" },
-          { 
-            text: "GUARDAR GASTO", 
-            onPress: async () => {
-              await DataService.addReceipt({
-                commerce: commerceName,
-                date: data.date || new Date().toLocaleDateString(),
-                total: data.total || 0,
-                savingsAlert: alertLog
-              });
-              Alert.alert("✅ Guardado", "Gasto registrado.", [
-                { text: "Ver Historial", onPress: () => navigation.navigate('History') },
-                { text: "OK", onPress: clearImage }
-              ]);
-            } 
-          }
-        ]
-      );
+      // SIMULACIÓN DE LECTURA (Aquí conectaríamos ML Kit Real)
+      // Por ahora simulamos una lectura exitosa para probar el flujo
+      setTimeout(() => {
+        setScannedData({
+            total: "24.990",
+            date: new Date().toLocaleDateString(),
+            store: "Lider (Lectura Simulada)",
+            raw: "Simulación activa."
+        });
+        setIsProcessing(false);
+      }, 1500);
 
     } catch (error) {
-      setUploading(false);
-      Alert.alert("Error", "No pude leer el cartel ni la boleta. Intenta acercarte más.");
+      console.error(error);
+      Alert.alert("Error", "No pudimos procesar la imagen.");
+      setIsProcessing(false);
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>VISIÓN IA 👁️</Text>
-        <Text style={styles.subtitle}>Apunta a un Local o a una Boleta</Text>
-      </View>
+  const handleSave = async () => {
+    if (scannedData) {
+      await DataService.saveReceipt({
+        store: scannedData.store,
+        total: parseInt(scannedData.total.replace(/\./g, '')),
+        date: scannedData.date,
+        items: []
+      });
+      Alert.alert("Guardado", "Gasto registrado correctamente.");
+      navigation.goBack();
+    }
+  };
 
-      <View style={styles.content}>
-        {image ? (
-          <View style={styles.previewContainer}>
-            <Image source={{ uri: image }} style={styles.imagePreview} />
-            <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.retryButton} onPress={clearImage}>
-                <Ionicons name="trash-outline" size={24} color="#FF4444" />
-                <Text style={styles.retryText}>Borrar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.processButton} onPress={handleAnalyze} disabled={uploading}>
-                <Ionicons name="scan-circle" size={24} color="#000" />
-                <Text style={styles.processText}>ANALIZAR</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="camera-outline" size={60} color="#D4AF37" />
-            </View>
-            <Text style={styles.emptyTitle}>¿Dónde estás?</Text>
-            <Text style={styles.emptyDesc}>
-              📸 **Opción 1:** Saca foto al letrero del local ANTES de pagar.{"\n"}
-              🧾 **Opción 2:** Saca foto a la boleta DESPUÉS de pagar.
-            </Text>
-            <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
-              <Ionicons name="camera" size={30} color="#000" />
-              <Text style={styles.cameraButtonText}>ABRIR CÁMARA</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+  if (!permission || !permission.granted) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={{color:'white'}}>Necesitamos permiso de cámara</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}><Text>DAR PERMISO</Text></TouchableOpacity>
       </View>
+    );
+  }
 
-      {uploading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#D4AF37" />
-          <Text style={styles.loadingText}>La IA está analizando...</Text>
+  if (scannedData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.resultContainer}>
+          <Ionicons name="receipt" size={60} color="#D4AF37" />
+          <Text style={styles.titleResult}>Datos Detectados</Text>
+          <View style={styles.ticket}>
+            <Text style={styles.label}>Comercio:</Text>
+            <Text style={styles.value}>{scannedData.store}</Text>
+            <Text style={styles.label}>Total:</Text>
+            <Text style={styles.totalValue}>${scannedData.total}</Text>
+          </View>
+          <TouchableOpacity style={styles.btnGold} onPress={handleSave}>
+            <Text style={styles.btnTextBlack}>GUARDAR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScannedData(null)} style={{marginTop:20}}>
+            <Text style={{color:'#888'}}>Intentar de nuevo</Text>
+          </TouchableOpacity>
         </View>
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <CameraView style={styles.camera} facing="back" ref={cameraRef}>
+        <SafeAreaView style={styles.overlay}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
+            <Ionicons name="close" size={30} color="white" />
+          </TouchableOpacity>
+          <View style={styles.bottomBar}>
+            {isProcessing ? <ActivityIndicator size="large" color="#D4AF37" /> : (
+              <TouchableOpacity onPress={takePicture} style={styles.shutterBtn}>
+                <View style={styles.shutterInner} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </SafeAreaView>
+      </CameraView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#1A1A1A' },
-  title: { color: '#D4AF37', fontSize: 22, fontWeight: 'bold', textAlign: 'center', letterSpacing: 1 },
-  subtitle: { color: '#666', textAlign: 'center', fontSize: 12, marginTop: 5 },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  emptyState: { alignItems: 'center', width: '100%' },
-  iconCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#333' },
-  emptyTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  emptyDesc: { color: '#888', fontSize: 14, textAlign: 'left', marginBottom: 40, paddingHorizontal: 20, lineHeight: 22 },
-  cameraButton: { flexDirection: 'row', backgroundColor: '#D4AF37', paddingVertical: 18, paddingHorizontal: 40, borderRadius: 50, alignItems: 'center', elevation: 5 },
-  cameraButtonText: { color: '#000', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
-  previewContainer: { width: '100%', height: '100%', alignItems: 'center' },
-  imagePreview: { width: '100%', height: '70%', borderRadius: 15, borderWidth: 1, borderColor: '#333', resizeMode: 'contain', backgroundColor: '#111' },
-  actionsRow: { flexDirection: 'row', marginTop: 30, width: '100%', justifyContent: 'space-around' },
-  retryButton: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 10, backgroundColor: '#1A0000', borderWidth: 1, borderColor: '#330000' },
-  retryText: { color: '#FF4444', fontWeight: 'bold', marginLeft: 5 },
-  processButton: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 10, backgroundColor: '#D4AF37', paddingHorizontal: 20 },
-  processText: { color: '#000', fontWeight: 'bold', marginLeft: 5 },
-  loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-  loadingText: { color: '#D4AF37', marginTop: 15, fontWeight: 'bold', fontSize: 16 }
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  camera: { flex: 1 },
+  overlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
+  closeBtn: { alignSelf: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 20 },
+  bottomBar: { alignItems: 'center', marginBottom: 40 },
+  shutterBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
+  btnGold: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 30, width: 200, alignItems: 'center', marginTop: 20 },
+  btnTextBlack: { fontWeight: 'bold' },
+  resultContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
+  titleResult: { color: '#FFF', fontSize: 22, fontWeight: 'bold', marginVertical: 20 },
+  ticket: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 15, width: '100%', marginBottom: 20 },
+  label: { color: '#888', fontSize: 12 },
+  value: { color: '#FFF', fontSize: 18, marginBottom: 10, fontWeight: 'bold' },
+  totalValue: { color: '#D4AF37', fontSize: 32, fontWeight: 'bold' }
 });

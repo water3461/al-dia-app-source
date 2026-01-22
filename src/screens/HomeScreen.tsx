@@ -1,143 +1,177 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native'; // 👈 Vital para actualizar al volver
+import { useNavigation } from '@react-navigation/native';
+import { DataService, Rule, BankCard } from '../services/DataService';
 
-// Importamos el servicio de datos
-import { DataService, Rule, Receipt } from '../services/DataService';
+export default function HomeScreen() {
+  const navigation = useNavigation<any>();
+  // Estado para la fecha seleccionada (Objeto Date completo)
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [dailyBenefits, setDailyBenefits] = useState<Rule[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [myBanks, setMyBanks] = useState<BankCard[]>([]);
 
-export default function HomeScreen({ navigation }: any) {
-  const [dailyRules, setDailyRules] = useState<Rule[]>([]);
-  const [recentReceipts, setRecentReceipts] = useState<Receipt[]>([]);
-  const [totalSpent, setTotalSpent] = useState(0);
-  const [greeting, setGreeting] = useState('');
+  // 1. Cargar datos iniciales
+  useEffect(() => {
+    loadUserData();
+  }, []);
 
-  // Se ejecuta cada vez que la pantalla se enfoca (entra en vista)
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-      determineGreeting();
-    }, [])
-  );
+  // 2. Cada vez que cambie la fecha seleccionada, filtramos los beneficios
+  useEffect(() => {
+    filterBenefitsByDate(selectedDate);
+  }, [selectedDate, myBanks]);
 
-  const determineGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Buenos días');
-    else if (hour < 20) setGreeting('Buenas tardes');
-    else setGreeting('Buenas noches');
+  const loadUserData = async () => {
+    // Obtenemos todos los bancos (mocks)
+    const allBanks = await DataService.getBanks();
+    // Obtenemos los ocultos
+    const hiddenIds = await DataService.getHiddenBanks();
+    // Filtramos solo MIS bancos
+    const visibleBanks = allBanks.filter(b => !hiddenIds.includes(b.id));
+    setMyBanks(visibleBanks);
   };
 
-  const loadDashboardData = async () => {
-    // 1. Cargar Reglas/Beneficios (Esto sigue igual)
-    const rules = await DataService.getDailyRules();
-    setDailyRules(rules);
+  const filterBenefitsByDate = (date: Date) => {
+    setLoading(true);
+    // Convertimos la fecha a día de la semana (ej: "Lunes")
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayName = days[date.getDay()]; // ej: "Miércoles"
 
-    // 2. 👇 CARGAR GASTOS REALES
-    const allReceipts = await DataService.getReceipts();
-    
-    // A. Calcular Total
-    const total = allReceipts.reduce((sum, item) => sum + item.total, 0);
-    setTotalSpent(total);
+    let rulesForDay: Rule[] = [];
 
-    // B. Obtener solo las últimas 5 boletas
-    // (Asumiendo que las guardamos nuevas primero, si no, habría que ordenar)
-    setRecentReceipts(allReceipts.slice(0, 5));
+    // Buscamos en MIS bancos las reglas que coincidan con este día
+    myBanks.forEach(bank => {
+      const bankRules = bank.rules.filter(rule => 
+        rule.day === dayName || rule.day === 'Todos' || (rule.days && rule.days.includes(dayName))
+      );
+      rulesForDay = [...rulesForDay, ...bankRules];
+    });
+
+    setDailyBenefits(rulesForDay);
+    setLoading(false);
   };
 
-  // Renderizar tarjeta de Beneficio
-  const renderRuleCard = ({ item }: { item: Rule }) => (
-    <View style={styles.ruleCard}>
-      <View style={styles.ruleHeader}>
-        <Ionicons name="pricetag" size={16} color="#D4AF37" />
-        <Text style={styles.commerceName}>{item.commerce_name}</Text>
-      </View>
-      <Text style={styles.benefitValue}>{item.benefit_value}</Text>
-      <Text style={styles.conditionText}>{item.condition}</Text>
-      <View style={styles.tipContainer}>
-        <Text style={styles.tipText}>💡 {item.smart_tip}</Text>
-      </View>
-    </View>
-  );
+  // Generamos la semana actual para el calendario visual
+  const generateWeek = () => {
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - today.getDay() + i); // Ajustar al Domingo como inicio
+      return { 
+        label: days[d.getDay()], 
+        dayNumber: d.getDate(), 
+        fullDate: d 
+      };
+    });
+  };
+  const weekDates = generateWeek();
+
+  // Acción al tocar un beneficio (Feedback útil)
+  const handleBenefitPress = (rule: Rule) => {
+    Alert.alert(
+      `${rule.store}`,
+      `💳 Usa tu tarjeta: ${rule.bank} (${rule.cardType})\n\n✅ Descuento: ${rule.discount}\n📅 Válido: ${rule.day}`,
+      [{ text: "Entendido", style: "default" }]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         
         {/* HEADER */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>{greeting},</Text>
-            <Text style={styles.userName}>Usuario Al Día</Text>
+            <Text style={styles.greeting}>Hola,</Text>
+            <Text style={styles.username}>Organiza tu día ☀️</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.profileBtn}>
-            <Ionicons name="person-circle-outline" size={40} color="#D4AF37" />
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+            <Ionicons name="person-circle" size={45} color="#D4AF37" />
           </TouchableOpacity>
         </View>
 
-        {/* RESUMEN DE GASTOS (REAL) */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>GASTO TOTAL REGISTRADO</Text>
-          <Text style={styles.summaryAmount}>${totalSpent.toLocaleString('es-CL')}</Text>
-          <View style={styles.summaryRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Boletas</Text>
-              <Text style={styles.statValue}>{recentReceipts.length > 0 ? 'Activo' : '0'}</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Ahorro Est.</Text>
-              <Text style={styles.statValue}>$0</Text> 
-            </View>
+        {/* CALENDARIO INTERACTIVO */}
+        <View style={styles.calendarContainer}>
+          <Text style={styles.sectionTitle}>Tu Semana</Text>
+          <View style={styles.calendarRow}>
+            {weekDates.map((item, index) => {
+              // Comparamos si es el mismo día
+              const isSelected = item.fullDate.getDate() === selectedDate.getDate();
+              const isToday = item.fullDate.getDate() === new Date().getDate();
+              
+              return (
+                <TouchableOpacity 
+                  key={index} 
+                  style={[
+                    styles.dayItem, 
+                    isSelected && styles.dayItemSelected,
+                    !isSelected && isToday && styles.dayItemToday // Estilo para "Hoy" si no está seleccionado
+                  ]}
+                  onPress={() => setSelectedDate(item.fullDate)}
+                >
+                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{item.label}</Text>
+                  <Text style={[styles.dateText, isSelected && styles.dateTextSelected]}>{item.dayNumber}</Text>
+                  {isSelected && <View style={styles.dot} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* BENEFICIOS DE HOY */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Beneficios de Hoy ⚡</Text>
-          <FlatList
-            data={dailyRules}
-            renderItem={renderRuleCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.rulesList}
-          />
+        {/* LISTA DE BENEFICIOS DINÁMICA */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
+            {selectedDate.getDate() === new Date().getDate() ? 'Ahorra Hoy ⚡' : `Ahorra el ${selectedDate.toLocaleDateString('es-CL', {weekday: 'long'})} 🗓️`}
+          </Text>
         </View>
 
-        {/* ÚLTIMOS MOVIMIENTOS (REAL) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Últimos Escaneos 🧾</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('History')}>
-              <Text style={styles.linkText}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Lista Dinámica */}
-          {recentReceipts.length > 0 ? (
-            recentReceipts.map((receipt) => (
-              <View key={receipt.id} style={styles.transactionRow}>
-                <View style={styles.transIcon}>
-                  <Ionicons name="receipt" size={20} color="#000" />
+        {loading ? (
+          <ActivityIndicator color="#D4AF37" style={{marginTop: 20}} />
+        ) : dailyBenefits.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benefitsScroll}>
+            {dailyBenefits.map((rule, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.benefitCard}
+                onPress={() => handleBenefitPress(rule)}
+              >
+                <View style={styles.cardHeader}>
+                  {/* Icono genérico según tienda */}
+                  <Ionicons name={rule.store.includes('Starbucks') ? 'cafe' : rule.store.includes('Copec') ? 'car' : 'pricetag'} size={20} color="#D4AF37" />
+                  <Text style={styles.benefitBrand} numberOfLines={1}>{rule.store}</Text>
                 </View>
-                <View style={styles.transInfo}>
-                  <Text style={styles.transCommerce}>{receipt.commerce}</Text>
-                  <Text style={styles.transDate}>{receipt.date}</Text>
+                
+                <View>
+                  <Text style={styles.benefitOffer}>{rule.discount}</Text>
+                  <Text style={styles.benefitDesc}>con {rule.bank}</Text>
+                  <View style={styles.tagContainer}>
+                     <Text style={styles.cardTypeTag}>{rule.cardType}</Text>
+                  </View>
                 </View>
-                <Text style={styles.transAmount}>${receipt.total.toLocaleString('es-CL')}</Text>
-              </View>
-            ))
-          ) : (
-            // Estado Vacío
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No hay movimientos recientes.</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Escanear')} style={styles.scanBtnMini}>
-                <Text style={styles.scanBtnText}>Escanear Ahora</Text>
               </TouchableOpacity>
-            </View>
-          )}
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No hay beneficios registrados para este día en tus bancos seleccionados.</Text>
+          </View>
+        )}
+
+        {/* ACCESO RÁPIDO A ESCÁNER */}
+        <View style={styles.actionContainer}>
+            <Text style={styles.sectionTitle}>Gastos</Text>
+            <TouchableOpacity 
+                style={styles.bigScanButton}
+                onPress={() => navigation.navigate('Escanear')}
+            >
+                <Ionicons name="scan" size={30} color="#000" />
+                <Text style={styles.bigScanText}>Escanear Boleta</Text>
+            </TouchableOpacity>
         </View>
 
       </ScrollView>
@@ -146,44 +180,44 @@ export default function HomeScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  scrollContent: { paddingBottom: 100 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+  container: { flex: 1, backgroundColor: '#000' },
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   greeting: { color: '#888', fontSize: 14 },
-  userName: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
-  profileBtn: { padding: 5 },
+  username: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  
+  calendarContainer: { paddingHorizontal: 20, marginBottom: 25 },
+  calendarRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
+  dayItem: { alignItems: 'center', padding: 8, borderRadius: 12, width: 45, backgroundColor: '#111' },
+  dayItemToday: { borderColor: '#333', borderWidth: 1 },
+  dayItemSelected: { backgroundColor: '#D4AF37' },
+  dayText: { color: '#666', fontSize: 12, marginBottom: 4 },
+  dayTextSelected: { color: '#000', fontWeight: 'bold' },
+  dateText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  dateTextSelected: { color: '#000' },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#000', marginTop: 4 },
 
-  summaryCard: { backgroundColor: '#1A1A1A', margin: 20, padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#333' },
-  summaryLabel: { color: '#888', fontSize: 12, letterSpacing: 1, marginBottom: 5 },
-  summaryAmount: { color: '#D4AF37', fontSize: 36, fontWeight: 'bold', marginBottom: 20 },
-  summaryRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 15 },
-  stat: { marginRight: 30 },
-  statLabel: { color: '#666', fontSize: 12 },
-  statValue: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-
-  section: { marginTop: 10, paddingBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
+  sectionHeader: { paddingHorizontal: 20, marginBottom: 15 },
   sectionTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  linkText: { color: '#D4AF37', fontSize: 14 },
 
-  rulesList: { paddingHorizontal: 20 },
-  ruleCard: { backgroundColor: '#111', width: 200, padding: 15, borderRadius: 15, marginRight: 15, borderWidth: 1, borderColor: '#222' },
-  ruleHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  commerceName: { color: '#FFF', fontWeight: 'bold', marginLeft: 5 },
-  benefitValue: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold' },
-  conditionText: { color: '#888', fontSize: 12, marginTop: 5 },
-  tipContainer: { marginTop: 10, backgroundColor: 'rgba(212, 175, 55, 0.1)', padding: 8, borderRadius: 8 },
-  tipText: { color: '#D4AF37', fontSize: 10 },
+  benefitsScroll: { paddingLeft: 20, marginBottom: 30 },
+  benefitCard: { 
+    width: 160, padding: 15, borderRadius: 16, marginRight: 15, height: 150, 
+    backgroundColor: '#1C1C1E', justifyContent: 'space-between', borderWidth: 1, borderColor: '#333' 
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  benefitBrand: { color: '#FFF', fontWeight: 'bold', fontSize: 14, flex: 1 },
+  benefitOffer: { color: '#D4AF37', fontSize: 22, fontWeight: 'bold', marginVertical: 5 },
+  benefitDesc: { color: '#888', fontSize: 12 },
+  tagContainer: { flexDirection: 'row', marginTop: 5 },
+  cardTypeTag: { backgroundColor: '#333', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, color: '#CCC', fontSize: 10 },
 
-  transactionRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
-  transIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  transInfo: { flex: 1 },
-  transCommerce: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  transDate: { color: '#666', fontSize: 12 },
-  transAmount: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  emptyState: { paddingHorizontal: 20, marginBottom: 30 },
+  emptyText: { color: '#555', fontStyle: 'italic' },
 
-  emptyState: { alignItems: 'center', marginTop: 10 },
-  emptyText: { color: '#666', marginBottom: 10 },
-  scanBtnMini: { backgroundColor: '#222', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1, borderColor: '#444' },
-  scanBtnText: { color: '#FFF', fontSize: 12 }
+  actionContainer: { paddingHorizontal: 20 },
+  bigScanButton: { 
+    backgroundColor: '#D4AF37', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 
+    padding: 20, borderRadius: 20, marginTop: 10, gap: 10 
+  },
+  bigScanText: { color: '#000', fontWeight: 'bold', fontSize: 18 }
 });
