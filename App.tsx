@@ -2,17 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-// 👇 Esto arregla los botones tapados por la barra blanca
+// 👇 Importante para que no se tapen los botones en tu S25 Ultra
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
+// Importamos las pantallas
 import HomeScreen from './src/screens/HomeScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import EditBanksScreen from './src/screens/EditBanksScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+
+// Importamos servicios
 import { DataService } from './src/services/DataService';
 
 const Tab = createBottomTabNavigator();
@@ -29,10 +32,11 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#000000',
           borderTopColor: '#333333',
-          // 👇 Altura dinámica para que no se tape
-          height: 60 + insets.bottom, 
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 8, 
-          paddingTop: 8,
+          // 👇 MEJORA VISUAL: 70px base + espacio del sistema para que se vea amplio y elegante
+          height: 70 + insets.bottom, 
+          // 👇 Damos 10px extra de aire sobre la barra blanca de Android
+          paddingBottom: insets.bottom + 10, 
+          paddingTop: 10,
         },
         tabBarActiveTintColor: '#D4AF37',
         tabBarInactiveTintColor: '#666666',
@@ -44,7 +48,7 @@ function MainTabs() {
           } else if (route.name === 'Escanear') {
             iconName = focused ? 'scan-circle' : 'scan-circle-outline';
             size = 32; 
-          } else if (route.name === 'Profile') { // 👈 Arreglado: Profile en inglés
+          } else if (route.name === 'Profile') { // 👈 Busca "Profile" (inglés) internamente
             iconName = focused ? 'person' : 'person-outline';
           }
 
@@ -55,7 +59,7 @@ function MainTabs() {
       <Tab.Screen name="Inicio" component={HomeScreen} />
       <Tab.Screen name="Escanear" component={ScanScreen} />
       
-      {/* 👇 Nombre interno "Profile", Título visible "Perfil" */}
+      {/* 👇 Nombre interno "Profile" para código, Título "Perfil" para el usuario */}
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen} 
@@ -88,6 +92,8 @@ export default function App() {
           {isOnboarding && (
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           )}
+          
+          {/* Aquí definimos que el grupo de pestañas se llama "Main" */}
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="EditBanks" component={EditBanksScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />
