@@ -1,78 +1,101 @@
-// 🔴 PEGA TU API KEY AQUÍ ABAJO ENTRE LAS COMILLAS
-const API_KEY = "AIzaSyBhAPA63_7J-sb6nqremZazxKJ7_S6SBw0"; 
+// 🔴 1. PEGA TU API KEY AQUÍ (Asegúrate de no dejar espacios extra al final)
+const API_KEY = "AIzaSyCBSHrAhlmeuEtp7KyEldwRwCbbexjqG0A"; 
 
-export const AIService = {
-  
-  // ANALIZAR BOLETA
-  analyzeReceipt: async (base64Image: string) => {
+// Lista de modelos que intentaremos usar (si falla uno, usa el siguiente)
+const VISION_MODELS = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
+const CHAT_MODELS = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-flash-8b"];
+
+// Función auxiliar para probar varios modelos hasta que uno funcione
+async function tryGoogleAI(models: string[], prompt: string, imageBase64?: string) {
+  let lastError = null;
+
+  for (const model of models) {
     try {
-      if (API_KEY.includes("PEGA_TU")) return null; // Protección si no cambiaste la key
+      console.log(`Intentando conectar con cerebro: ${model}...`);
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+      
+      const requestBody: any = {
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      };
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      // Si hay imagen, la agregamos al cuerpo del mensaje
+      if (imageBase64) {
+        requestBody.contents[0].parts.push({
+          inline_data: { mime_type: "image/jpeg", data: imageBase64 }
+        });
+      }
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Eres un experto OCR. Extrae JSON puro: { \"store\": string, \"date\": string, \"total\": number }. Si no ves boleta devuelve null." },
-              { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-            ]
-          }]
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const jsonStr = text.replace(/```json|```/g, '').trim();
-      return JSON.parse(jsonStr);
+
+      // Si Google devuelve error explícito, lanzamos excepción para probar el siguiente modelo
+      if (data.error) throw new Error(data.error.message);
+
+      // Si llegamos aquí, ¡ÉXITO! Devolvemos el texto
+      return data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    } catch (error: any) {
+      console.log(`Fallo el modelo ${model}: ${error.message}`);
+      lastError = error;
+      // Continuamos al siguiente modelo del bucle...
+    }
+  }
+  
+  // Si fallaron todos
+  throw lastError;
+}
+
+export const AIService = {
+  
+  // 1. ANALIZAR BOLETA (CÁMARA)
+  analyzeReceipt: async (base64Image: string) => {
+    try {
+      if (API_KEY.includes("TU_API_KEY")) return null;
+
+      const prompt = "Analiza esta imagen. Responde SOLAMENTE con un JSON puro (sin markdown, sin comillas extra) con este formato: { \"store\": \"nombre tienda\", \"date\": \"dd/mm/yyyy\", \"total\": numero }. Si no es una boleta, devuelve null.";
+      
+      // Intentamos con la lista de modelos de visión
+      const textResponse = await tryGoogleAI(VISION_MODELS, prompt, base64Image);
+      
+      if (!textResponse) return null;
+
+      // Limpieza agresiva del JSON
+      const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanJson);
 
     } catch (error) {
-      console.error("Error IA:", error);
+      console.error("Error definitivo IA Vision:", error);
       return null;
     }
   },
 
-  // CHAT SIN FILTROS (CEREBRO REAL)
+  // 2. CHAT CON EL ASISTENTE
   chatWithAI: async (userMessage: string, context: string) => {
     try {
-      // 1. Verificamos que tengas la Key
-      if (API_KEY.includes("PEGA_TU")) {
-        return "⚠️ Error: Falta la API Key en el código. Dile al desarrollador que la ponga en AIService.ts.";
-      }
+      if (API_KEY.includes("TU_API_KEY")) return "⚠️ Error: Falta la API Key en AIService.ts";
 
-      // 2. Prompt con Personalidad
-      const systemPrompt = `
-        Actúa como 'Al Día', un asesor financiero chileno personal, empático y astuto.
-        
-        TUS DATOS ACTUALES (CONTEXTO REAL DEL USUARIO):
-        ${context}
-        
-        INSTRUCCIONES:
-        - Responde a la pregunta del usuario: "${userMessage}"
-        - Usa modismos chilenos suaves (cachái, bacán, lucas, al tiro) pero sé profesional.
-        - Sé breve (máximo 3 frases).
-        - Si el usuario pregunta algo que no está en los datos, di que no sabes pero dales un consejo general.
-        - NO inventes datos que no están en el contexto.
+      const prompt = `
+        Eres 'Al Día', un asesor financiero chileno.
+        CONTEXTO DEL USUARIO: ${context}
+        PREGUNTA: "${userMessage}"
+        Responde breve, usa modismos chilenos (cachái, lucas) y sé útil.
       `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }]
-        })
-      });
-
-      const data = await response.json();
+      // Intentamos con la lista de modelos de chat
+      const response = await tryGoogleAI(CHAT_MODELS, prompt);
       
-      if (data.error) {
-        return `Error de Google: ${data.error.message}`;
-      }
-
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Me quedé en blanco. ¿Qué decías?";
+      return response || "Se me fue la onda. Intenta de nuevo.";
 
     } catch (error) {
-      return "Sin conexión. Revisa tu internet o la API Key. 🔌";
+      return "No logré conectar con ningún cerebro de Google. Revisa tu API Key o Internet. 🔌";
     }
   }
 };

@@ -62,7 +62,6 @@ export default function App() {
 
   const checkOnboarding = async () => {
     const complete = await DataService.isOnboardingComplete();
-    // Definimos la ruta inicial, pero cargamos TODAS las pantallas
     setInitialRoute(complete ? 'Main' : 'Onboarding');
     setLoading(false);
   };
@@ -75,10 +74,11 @@ export default function App() {
         <StatusBar style="light" />
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           
-          {/* 👇 SOLUCIÓN: Declaramos las pantallas SIEMPRE para que no fallen los links */}
+          {/* 👇 ESTO ARREGLA EL ERROR DE LAS FOTOS 22, 33, 88 */}
+          {/* Dejamos Onboarding siempre disponible, aunque ya te hayas logueado */}
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="Main" component={MainTabs} />
           
+          <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="EditBanks" component={EditBanksScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />

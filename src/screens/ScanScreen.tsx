@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
+// 👇 ASEGÚRATE DE QUE ESTA LÍNEA ESTÉ ASÍ:
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { DataService } from '../services/DataService';
-import { AIService } from '../services/AIService'; // 👈 IMPORTAMOS LA IA
+import { AIService } from '../services/AIService';
 
 export default function ScanScreen() {
   const navigation = useNavigation();
@@ -17,8 +18,8 @@ export default function ScanScreen() {
   if (!permission.granted) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={{color:'white'}}>Necesito permiso de cámara</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}><Text>DAR PERMISO</Text></TouchableOpacity>
+        <Text style={{color:'white', marginBottom:20}}>Necesito permiso de cámara</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}><Text style={styles.btnTextBlack}>DAR PERMISO</Text></TouchableOpacity>
       </View>
     );
   }
@@ -27,27 +28,18 @@ export default function ScanScreen() {
     if (!cameraRef.current) return;
     try {
       setIsProcessing(true);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.4, base64: true });
       
-      // 1. Tomamos la foto en base64 (formato que entiende la IA)
-      const photo = await cameraRef.current.takePictureAsync({ 
-        quality: 0.4, // Calidad media para que sea rápido
-        base64: true 
-      });
-      
-      console.log("Enviando a la IA...");
-
-      // 2. Enviamos a la IA REAL
+      console.log("Enviando a IA...");
       if (photo?.base64) {
         const result = await AIService.analyzeReceipt(photo.base64);
-        
         if (result && result.total) {
-          setScannedData(result); // ¡DATOS REALES!
+          setScannedData(result);
         } else {
-          Alert.alert("Ups", "No pude leer la boleta. Intenta acercarte más o mejorar la luz.");
+          Alert.alert("No pude leerlo", "Intenta mejorar la luz o acercarte más.");
         }
       }
       setIsProcessing(false);
-
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Falló el análisis.");
@@ -63,12 +55,11 @@ export default function ScanScreen() {
         date: scannedData.date,
         items: []
       });
-      Alert.alert("¡Guardado!", "Gasto real registrado.");
+      Alert.alert("¡Guardado!", "Gasto registrado.");
       navigation.goBack();
     }
   };
 
-  // VISTA DE RESULTADOS
   if (scannedData) {
     return (
       <SafeAreaView style={styles.container}>
@@ -76,17 +67,14 @@ export default function ScanScreen() {
           <Ionicons name="sparkles" size={60} color="#D4AF37" />
           <Text style={styles.titleResult}>IA: Boleta Leída</Text>
           <View style={styles.ticket}>
-            <Text style={styles.label}>Comercio Detectado:</Text>
+            <Text style={styles.label}>Comercio:</Text>
             <Text style={styles.value}>{scannedData.store}</Text>
             <View style={styles.divider} />
-            <Text style={styles.label}>Fecha:</Text>
-            <Text style={styles.value}>{scannedData.date}</Text>
-            <View style={styles.divider} />
-            <Text style={styles.label}>Monto Total:</Text>
+            <Text style={styles.label}>Total:</Text>
             <Text style={styles.totalValue}>${scannedData.total.toLocaleString('es-CL')}</Text>
           </View>
           <TouchableOpacity style={styles.btnGold} onPress={handleSave}>
-            <Text style={styles.btnTextBlack}>GUARDAR (REAL)</Text>
+            <Text style={styles.btnTextBlack}>CONFIRMAR</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setScannedData(null)} style={{marginTop:20}}>
             <Text style={{color:'#888'}}>Descartar</Text>
@@ -96,7 +84,6 @@ export default function ScanScreen() {
     );
   }
 
-  // VISTA DE CÁMARA
   return (
     <View style={styles.container}>
       <CameraView style={styles.camera} facing="back" ref={cameraRef}>
@@ -106,10 +93,7 @@ export default function ScanScreen() {
           </TouchableOpacity>
           <View style={styles.bottomBar}>
             {isProcessing ? (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color="#000" />
-                <Text style={{fontWeight:'bold'}}>La IA está pensando...</Text>
-              </View>
+              <ActivityIndicator size="large" color="#D4AF37" />
             ) : (
               <TouchableOpacity onPress={takePicture} style={styles.shutterBtn}>
                 <View style={styles.shutterInner} />
@@ -131,7 +115,6 @@ const styles = StyleSheet.create({
   bottomBar: { alignItems: 'center', marginBottom: 40 },
   shutterBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
-  loadingBox: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 20, flexDirection: 'row', gap: 10, alignItems: 'center' },
   btnGold: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 30, width: 200, alignItems: 'center', marginTop: 20 },
   btnTextBlack: { fontWeight: 'bold' },
   resultContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
