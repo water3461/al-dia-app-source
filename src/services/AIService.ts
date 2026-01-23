@@ -1,5 +1,5 @@
 // 🔴 1. PEGA TU API KEY AQUÍ (Asegúrate que empiece con AIza...)
-const API_KEY = "AIzaSyAtudJHZT-hZnG0ei_peCR8f3y-WhNkr7Q"; 
+const API_KEY = "AIzaSyAt0UWrF_X9NJkYMwKbYFHaP6iGoD-ockI"; 
 
 const MODELS_TO_TRY = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro", "gemini-1.5-pro"];
 
