@@ -1,105 +1,87 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { DataService } from '../services/DataService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// LISTA DE BANCOS DISPONIBLES
-const ALL_BANKS = [
-  { name: 'Banco de Chile', color: '#002C5F' },
-  { name: 'Banco Santander', color: '#EC0000' },
-  { name: 'Banco Falabella', color: '#137E30' },
-  { name: 'BCI', color: '#002E6D' },
-  { name: 'Scotiabank', color: '#EC111A' },
-  { name: 'Banco Estado', color: '#E56E00' },
-  { name: 'Itaú', color: '#EC7000' },
-  { name: 'Tenpo', color: '#0099FF' },
-  { name: 'Mach', color: '#540099' },
-  { name: 'Mercado Pago', color: '#009EE3' },
-  { name: 'Copec Pay', color: '#E84E1B' },
-];
+const HISTORY_KEY = 'aldia_history_v1';
+const OFFERS_KEY = 'aldia_offers_v1';
+const USER_DATA_KEY = 'aldia_userdata_v1';
+const ONBOARDING_KEY = 'aldia_onboarding_v1';
+const WALLET_KEY = 'aldia_wallet_v1';
 
-export default function WalletSetupScreen() {
-  const navigation = useNavigation();
-  const [selected, setSelected] = useState<string[]>([]);
+const MASTER_OFFERS: any = {
+  'Banco de Chile': { color: '#002C5F', icon: 'card', benefit: '40% Restoranes' },
+  'Banco Santander': { color: '#EC0000', icon: 'card', benefit: '30% Gasolina' },
+  'Banco Falabella': { color: '#137E30', icon: 'cart', benefit: '40% Lunes' },
+  'CMR Falabella': { color: '#3A8D28', icon: 'cart', benefit: 'Puntos Extra' },
+  'BCI': { color: '#002E6D', icon: 'card', benefit: '20% Super' },
+  'Scotiabank': { color: '#EC111A', icon: 'card', benefit: '40% Bares' },
+  'Banco Estado': { color: '#E56E00', icon: 'wallet', benefit: 'Sin Costo' },
+  'Itaú': { color: '#EC7000', icon: 'card', benefit: 'Rutas Gourmet' },
+  'Tenpo': { color: '#0099FF', icon: 'phone-portrait', benefit: 'Devolución $$' },
+  'Mach': { color: '#540099', icon: 'phone-portrait', benefit: 'Cashback' },
+  'Copec Pay': { color: '#E84E1B', icon: 'car', benefit: 'Dcto por Litro' },
+  'Mercado Pago': { color: '#009EE3', icon: 'qr-code', benefit: 'Dcto QR' },
+  'Genérico': { color: '#333', icon: 'wallet', benefit: 'Ahorro' }
+};
 
-  const toggleBank = (name: string) => {
-    if (selected.includes(name)) {
-      setSelected(selected.filter(b => b !== name));
-    } else {
-      setSelected([...selected, name]);
+const DEFAULT_OFFERS_CALENDAR = {
+  'LU': { dayFull: "Lunes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'MA': { dayFull: "Martes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'MI': { dayFull: "Miércoles", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'JU': { dayFull: "Jueves", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'VI': { dayFull: "Viernes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'SA': { dayFull: "Sábado", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
+  'DO': { dayFull: "Domingo", bank: "Por definir", ...MASTER_OFFERS['Genérico'] }
+};
+
+export const DataService = {
+  isOnboardingComplete: async () => {
+    try { return (await AsyncStorage.getItem(ONBOARDING_KEY)) === 'true'; } catch (e) { return false; }
+  },
+  setOnboardingComplete: async () => { await AsyncStorage.setItem(ONBOARDING_KEY, 'true'); },
+
+  saveMyWallet: async (selectedBanks: string[]) => {
+    await AsyncStorage.setItem(WALLET_KEY, JSON.stringify(selectedBanks));
+    if (selectedBanks.length > 0) {
+      const newCalendar: any = { ...DEFAULT_OFFERS_CALENDAR };
+      const days = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
+      days.forEach((day, index) => {
+        const bankName = selectedBanks[index % selectedBanks.length];
+        const bankInfo = MASTER_OFFERS[bankName] || MASTER_OFFERS['Genérico'];
+        newCalendar[day] = {
+          dayFull: newCalendar[day].dayFull,
+          bank: bankName,
+          color: bankInfo.color,
+          icon: bankInfo.icon,
+          benefit: bankInfo.benefit,
+          store: "Comercio Asociado"
+        };
+      });
+      await DataService.saveOffers(newCalendar);
     }
-  };
+  },
 
-  const handleContinue = async () => {
-    if (selected.length === 0) {
-      Alert.alert("Ojo 👀", "Selecciona al menos una tarjeta para que la IA funcione.");
-      return;
-    }
-    
-    // Guardamos y la magia de DataService configura el calendario sola
-    await DataService.saveMyWallet(selected);
-    await DataService.setOnboardingComplete();
-    
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Main' as never }],
-    });
-  };
-
-  const renderItem = ({ item }: { item: any }) => {
-    const isSelected = selected.includes(item.name);
-    return (
-      <TouchableOpacity 
-        style={[styles.card, isSelected && {borderColor: '#D4AF37', backgroundColor: '#222'}]} 
-        onPress={() => toggleBank(item.name)}
-      >
-        <View style={[styles.colorDot, {backgroundColor: item.color}]} />
-        <Text style={[styles.name, isSelected && {color: '#D4AF37'}]}>{item.name}</Text>
-        <Ionicons 
-          name={isSelected ? "checkbox" : "square-outline"} 
-          size={24} 
-          color={isSelected ? "#D4AF37" : "#666"} 
-        />
-      </TouchableOpacity>
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>¿Qué tienes en tu billetera?</Text>
-        <Text style={styles.subtitle}>Selecciona tus bancos y nosotros armamos tu calendario de descuentos.</Text>
-      </View>
-
-      <FlatList
-        data={ALL_BANKS}
-        renderItem={renderItem}
-        keyExtractor={item => item.name}
-        contentContainerStyle={{ padding: 20 }}
-      />
-
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.btn} onPress={handleContinue}>
-          <Text style={styles.btnText}>LISTO, ARRANCAR 🚀</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 20, paddingTop: 40 },
-  title: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
-  subtitle: { color: '#888', fontSize: 16, lineHeight: 22 },
-  
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, borderRadius: 15, marginBottom: 10, borderWidth: 1, borderColor: '#333' },
-  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 15 },
-  name: { color: '#FFF', fontSize: 16, fontWeight: 'bold', flex: 1 },
-  
-  footer: { padding: 20, borderTopWidth: 1, borderColor: '#222' },
-  btn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
-  btnText: { fontWeight: 'bold', fontSize: 16, letterSpacing: 1 }
-});
+  getMyWallet: async () => {
+    try { const json = await AsyncStorage.getItem(WALLET_KEY); return json ? JSON.parse(json) : []; } catch (e) { return []; }
+  },
+  getHistory: async () => {
+    try { const json = await AsyncStorage.getItem(HISTORY_KEY); return json ? JSON.parse(json) : []; } catch (e) { return []; }
+  },
+  saveReceipt: async (receipt: any) => {
+    try {
+      const current = await DataService.getHistory();
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify([receipt, ...current]));
+      return true;
+    } catch (e) { return false; }
+  },
+  getOffers: async () => {
+    try { const json = await AsyncStorage.getItem(OFFERS_KEY); return json ? JSON.parse(json) : DEFAULT_OFFERS_CALENDAR; } catch (e) { return DEFAULT_OFFERS_CALENDAR; }
+  },
+  saveOffers: async (newOffers: any) => { await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(newOffers)); },
+  resetOffers: async () => { 
+    await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(DEFAULT_OFFERS_CALENDAR)); 
+    return DEFAULT_OFFERS_CALENDAR; 
+  },
+  getUserData: async () => {
+    try { const json = await AsyncStorage.getItem(USER_DATA_KEY); return json ? JSON.parse(json) : {}; } catch (e) { return {}; }
+  },
+  saveUserData: async (data: any) => { await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data)); }
+};
