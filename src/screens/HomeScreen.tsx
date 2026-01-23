@@ -194,4 +194,76 @@ export default function HomeScreen() {
             </View>
             <View style={styles.dataRow}><Text style={styles.dataLabel}>Titular:</Text><Text style={styles.dataValue}>{myBankData.name || '---'}</Text></View>
             <View style={styles.dataRow}><Text style={styles.dataLabel}>Banco:</Text><Text style={styles.dataValue}>{myBankData.bank || '---'}</Text></View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>Cuenta:</Text><Text style={styles.dataValue}>{myBank
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>Cuenta:</Text><Text style={styles.dataValue}>{myBankData.account || '---'}</Text></View>
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>RUT:</Text><Text style={styles.dataValue}>{myBankData.rut || '---'}</Text></View>
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>Email:</Text><Text style={styles.dataValue}>{myBankData.email || '---'}</Text></View>
+            
+            <View style={{flexDirection:'row', gap:10, marginTop:20}}>
+              <TouchableOpacity style={[styles.closeModalBtn, {backgroundColor:'#333', flex:1}]} onPress={() => { setShowMyData(false); navigation.navigate('Settings' as never); }}>
+                <Text style={{fontWeight:'bold', color:'#FFF'}}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.closeModalBtn, {flex:1}]} onPress={() => setShowMyData(false)}>
+                <Text style={{fontWeight:'bold', color:'#000'}}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 25 }, 
+  
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  greeting: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
+  aiQuote: { color: '#D4AF37', fontStyle: 'italic', marginTop: 4, maxWidth: 220, fontSize: 13 },
+  
+  iconBtn: { width: 45, height: 45, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' },
+
+  sectionContainer: { gap: 10 },
+  sectionTitle: { color: '#888', fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
+
+  // Calendario
+  calendarRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#333', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' },
+  dayText: { color: '#666', fontWeight: 'bold', fontSize: 12 },
+  benefitCard: { padding: 15, borderRadius: 20, height: 140, justifyContent: 'space-between' },
+  benefitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bankName: { color: '#FFF', fontWeight: 'bold', fontSize: 14, opacity: 0.9 },
+  benefitBig: { color: '#FFF', fontSize: 28, fontWeight: 'bold' },
+  benefitStore: { color: '#FFF', fontSize: 14, opacity: 0.8 },
+  cardChip: { width: 35, height: 22, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, position: 'absolute', bottom: 15, right: 15 },
+
+  // Cazador & Dinero
+  hunterRow: { flexDirection: 'row', gap: 10 },
+  searchInput: { flex: 1, backgroundColor: '#1C1C1E', borderRadius: 12, color: '#FFF', paddingHorizontal: 15, height: 45, fontSize: 14, borderWidth:1, borderColor:'#333' },
+  searchBtn: { backgroundColor: '#D4AF37', width: 45, height: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  recBubble: { backgroundColor: 'rgba(212, 175, 55, 0.15)', padding: 15, borderRadius: 15, borderLeftWidth: 3, borderColor: '#D4AF37' },
+  aiRecText: { color: '#D4AF37', fontSize: 14, fontWeight: 'bold' },
+
+  moneyCard: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  moneyLabel: { color: '#666', fontSize: 10, marginBottom: 5, fontWeight:'bold' },
+  moneyValue: { color: '#FFF', fontSize: 36, fontWeight: 'bold' },
+  progressBarBg: { width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3, marginTop: 15 },
+  progressBarFill: { height: '100%', backgroundColor: '#D4AF37', borderRadius: 3 },
+
+  // Acciones
+  actionsGrid: { flexDirection: 'row', gap: 10, marginTop: 5 },
+  actionBtn: { flex: 1, backgroundColor: '#111', paddingVertical: 15, borderRadius: 15, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
+  aiBtn: { backgroundColor: '#222', borderColor: '#444' },
+  iconCircle: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  btnLabel: { color: '#D4AF37', fontWeight: 'bold', fontSize: 12 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  modalCard: { backgroundColor: '#1C1C1E', padding: 30, borderRadius: 25, width: '85%', borderWidth: 1, borderColor: '#333' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color:'#FFF', marginTop:10 },
+  dataRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, borderBottomWidth: 1, borderColor: '#333', paddingBottom: 5 },
+  dataLabel: { color: '#888' },
+  dataValue: { color: '#FFF', fontWeight: 'bold' },
+  closeModalBtn: { padding: 15, borderRadius: 15, alignItems: 'center', backgroundColor:'#D4AF37' },
+});
