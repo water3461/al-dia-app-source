@@ -6,15 +6,19 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
+// Importamos tus pantallas
 import HomeScreen from './src/screens/HomeScreen';
 import AssistantScreen from './src/screens/AssistantScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
+import SettingsScreen from './src/screens/SettingsScreen'; // <--- NUEVA PANTALLA
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import EditBanksScreen from './src/screens/EditBanksScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+
+// Servicios
 import { DataService } from './src/services/DataService';
+import { NotificationService } from './src/services/NotificationService'; // <--- NOTIFICACIONES
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -58,6 +62,10 @@ export default function App() {
 
   useEffect(() => {
     checkOnboarding();
+    
+    // 🔔 INICIAR NOTIFICACIONES
+    NotificationService.registerForPushNotificationsAsync();
+    NotificationService.scheduleDailyReminder();
   }, []);
 
   const checkOnboarding = async () => {
@@ -74,11 +82,10 @@ export default function App() {
         <StatusBar style="light" />
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           
-          {/* 👇 ESTO ARREGLA EL ERROR DE LAS FOTOS 22, 33, 88 */}
-          {/* Dejamos Onboarding siempre disponible, aunque ya te hayas logueado */}
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          
           <Stack.Screen name="Main" component={MainTabs} />
+          
+          {/* RUTAS ADICIONALES */}
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="EditBanks" component={EditBanksScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />

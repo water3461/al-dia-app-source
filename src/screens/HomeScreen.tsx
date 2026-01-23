@@ -1,141 +1,197 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { 
+  View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, 
+  TextInput, Modal, Vibration
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { DataService } from '../services/DataService';
-import { AIService } from '../services/AIService'; // <--- Importamos la IA
+import { AIService } from '../services/AIService';
+
+const DAYS = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
+  
+  // ESTADOS DE DATOS
   const [totalSpent, setTotalSpent] = useState(0);
-  const [receiptCount, setReceiptCount] = useState(0);
-  const [dailyQuote, setDailyQuote] = useState("Cargando opinión..."); // <--- Estado para la frase
+  const [dailyQuote, setDailyQuote] = useState("Conectando...");
+  const [weeklyOffers, setWeeklyOffers] = useState<any>({}); // Ofertas dinámicas
+  const [myBankData, setMyBankData] = useState<any>({});   // Datos bancarios dinámicos
 
-  const MONTHLY_BUDGET = 500000; 
+  // ESTADOS DE INTERFAZ
+  const [selectedDay, setSelectedDay] = useState('LU'); // Día seleccionado
+  const [storeSearch, setStoreSearch] = useState("");
+  const [cardRecommendation, setCardRecommendation] = useState<string | null>(null);
+  const [showMyData, setShowMyData] = useState(false);
 
+  // CARGA DE DATOS (Se ejecuta al entrar a la pantalla)
   const loadData = async () => {
+    // 1. Historial y Gasto
     const history = await DataService.getHistory();
-    const total = history.reduce((acc, item) => acc + item.total, 0);
+    const total = history.reduce((acc: any, item: any) => acc + item.total, 0);
     setTotalSpent(total);
-    setReceiptCount(history.length);
+
+    // 2. Cargar Configuración Personal (Persistencia)
+    const offers = await DataService.getOffers();
+    setWeeklyOffers(offers);
     
-    // PEDIR OPINIÓN A LA IA (DOPAMINA)
+    const userData = await DataService.getUserData();
+    setMyBankData(userData);
+
+    // 3. Frase IA
     const quote = await AIService.generateDailyQuote(total);
     setDailyQuote(quote);
     
     setRefreshing(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  // Forzar recarga al volver de Settings
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
-  const progress = Math.min(totalSpent / MONTHLY_BUDGET, 1);
-  const progressColor = progress > 0.8 ? '#FF3B30' : (progress > 0.5 ? '#FFCC00' : '#4CD964');
+  const handleCardHunt = async () => {
+    if (!storeSearch.trim()) return;
+    Vibration.vibrate(50);
+    setCardRecommendation("🤖 Analizando...");
+    const rec = await AIService.recommendCard(storeSearch);
+    setCardRecommendation(rec);
+  };
+
+  // Obtener oferta del día seleccionado (o fallback vacío)
+  const currentOffer = weeklyOffers[selectedDay] || {
+    color: '#333', dayFull: 'Cargando...', bank: '...', benefit: '...', store: '...', icon: 'help'
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#D4AF37"/>}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); loadData();}} tintColor="#D4AF37"/>}
       >
-        {/* HEADER CON IA */}
+        {/* HEADER */}
         <View style={styles.header}>
-          <View style={{flex: 1}}>
-            <Text style={styles.greeting}>Hola, Jefe 👋</Text>
-            {/* AQUÍ VA LA FRASE DIVERTIDA */}
+          <View style={{flex:1}}>
+            <Text style={styles.greeting}>Hola, Partner 🤜🤛</Text>
             <Text style={styles.aiQuote}>"{dailyQuote}"</Text>
           </View>
-          <TouchableOpacity onPress={loadData} style={styles.refreshBtn}>
-             <Ionicons name="refresh" size={20} color="#000" />
-          </TouchableOpacity>
+          
+          <View style={{flexDirection: 'row', gap: 10}}>
+            {/* BOTÓN CONFIGURACIÓN (NUEVO) */}
+            <TouchableOpacity onPress={() => navigation.navigate('Settings' as never)} style={styles.iconBtn}>
+              <Ionicons name="settings-sharp" size={24} color="#FFF" />
+            </TouchableOpacity>
+
+            {/* BOTÓN MIS DATOS */}
+            <TouchableOpacity onPress={() => setShowMyData(true)} style={[styles.iconBtn, {backgroundColor: '#D4AF37'}]}>
+              <Ionicons name="card-outline" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* TARJETA PRINCIPAL (HUD) */}
-        <View style={styles.mainCard}>
-          <Text style={styles.cardTitle}>GASTO MENSUAL</Text>
-          <Text style={styles.bigMoney}>${totalSpent.toLocaleString('es-CL')}</Text>
-          
-          <View style={styles.barContainer}>
-            <View style={[styles.barFill, { width: `${progress * 100}%`, backgroundColor: progressColor }]} />
-          </View>
-          
-          <View style={styles.rowBetween}>
-            <Text style={styles.limitText}>Meta: ${MONTHLY_BUDGET.toLocaleString('es-CL')}</Text>
-            <Text style={{color: progressColor, fontWeight:'bold'}}>
-              {(progress * 100).toFixed(0)}% Usado
+        {/* CALENDARIO DE BENEFICIOS */}
+        <View style={styles.sectionContainer}>
+          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
+            <Text style={styles.sectionTitle}>📅 Tu Agenda de Ahorro</Text>
+            <Text style={{color: currentOffer.color || '#FFF', fontWeight:'bold', fontSize:12}}>
+              {currentOffer.dayFull}
             </Text>
           </View>
+
+          <View style={styles.calendarRow}>
+            {DAYS.map((day) => (
+              <TouchableOpacity 
+                key={day} 
+                onPress={() => {setSelectedDay(day); Vibration.vibrate(15);}}
+                style={[
+                  styles.dayCircle, 
+                  selectedDay === day && {
+                    backgroundColor: weeklyOffers[day]?.color || '#333', 
+                    borderColor: weeklyOffers[day]?.color || '#333'
+                  }
+                ]}
+              >
+                <Text style={[styles.dayText, selectedDay === day && {color:'#FFF'}]}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* TARJETA DE BENEFICIO DINÁMICA */}
+          <View style={[styles.benefitCard, { backgroundColor: currentOffer.color || '#222' }]}>
+            <View style={styles.benefitHeader}>
+               <Ionicons name={currentOffer.icon as any || 'help'} size={24} color="rgba(255,255,255,0.8)" />
+               <Text style={styles.bankName}>{currentOffer.bank}</Text>
+            </View>
+            <Text style={styles.benefitBig}>{currentOffer.benefit}</Text>
+            <Text style={styles.benefitStore}>{currentOffer.store}</Text>
+            <View style={styles.cardChip} /> 
+          </View>
         </View>
 
-        {/* MEDALLAS (VISUALES POR AHORA) */}
-        <Text style={styles.sectionTitle}>Tus Logros 🏆</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgesScroll}>
-            <View style={styles.badgeCard}>
-                <Ionicons name="flash" size={30} color="#FFCC00" />
-                <Text style={styles.badgeText}>Iniciador</Text>
-            </View>
-            <View style={[styles.badgeCard, receiptCount < 5 && styles.lockedBadge]}>
-                <Ionicons name="cart" size={30} color={receiptCount >= 5 ? "#4CD964" : "#555"} />
-                <Text style={styles.badgeText}>Comprador</Text>
-                {receiptCount < 5 && <Ionicons name="lock-closed" size={14} color="#555" style={styles.lockIcon} />}
-            </View>
-            <View style={[styles.badgeCard, styles.lockedBadge]}>
-                <Ionicons name="diamond" size={30} color="#555" />
-                <Text style={styles.badgeText}>Magnate</Text>
-                <Ionicons name="lock-closed" size={14} color="#555" style={styles.lockIcon} />
-            </View>
-        </ScrollView>
+        {/* CAZADOR DE DESCUENTOS */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>🕵️‍♂️ ¿Con qué pago?</Text>
+          <View style={styles.hunterRow}>
+            <TextInput 
+              style={styles.searchInput} placeholder="Escribe tienda (ej: Zara...)" placeholderTextColor="#666"
+              value={storeSearch} onChangeText={setStoreSearch}
+            />
+            <TouchableOpacity style={styles.searchBtn} onPress={handleCardHunt}>
+              <Ionicons name="search" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
+          {cardRecommendation && (
+            <View style={styles.recBubble}><Text style={styles.aiRecText}>{cardRecommendation}</Text></View>
+          )}
+        </View>
 
-        {/* ACCIONES RÁPIDAS */}
-        <Text style={styles.sectionTitle}>Acciones</Text>
-        <View style={styles.actionGrid}>
+        {/* GASTO TOTAL */}
+        <View style={styles.moneyCard}>
+          <Text style={styles.moneyLabel}>GASTO ACUMULADO</Text>
+          <Text style={styles.moneyValue}>${totalSpent.toLocaleString('es-CL')}</Text>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${Math.min(totalSpent/500000, 1) * 100}%` }]} />
+          </View>
+        </View>
+
+        {/* ACCESOS DIRECTOS */}
+        <View style={styles.actionsGrid}>
+          {/* Escanear */}
           <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Escanear' as never)}>
-            <View style={[styles.iconCircle, {backgroundColor: 'rgba(212, 175, 55, 0.2)'}]}>
-              <Ionicons name="scan" size={24} color="#D4AF37" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="scan" size={26} color="#D4AF37" />
             </View>
-            <Text style={styles.actionText}>Escanear</Text>
+            <Text style={styles.btnLabel}>Escanear</Text>
+          </TouchableOpacity>
+          
+          {/* Asistente */}
+          <TouchableOpacity style={[styles.actionBtn, styles.aiBtn]} onPress={() => navigation.navigate('Asistente' as never)}>
+            <View style={[styles.iconCircle, {borderColor: '#FFF'}]}>
+              <Ionicons name="chatbubble-ellipses" size={26} color="#FFF" />
+            </View>
+            <Text style={[styles.btnLabel, {color: '#FFF'}]}>Asistente</Text>
           </TouchableOpacity>
 
+          {/* Historial */}
           <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('History' as never)}>
-            <View style={[styles.iconCircle, {backgroundColor: 'rgba(255, 255, 255, 0.1)'}]}>
-              <Ionicons name="list" size={24} color="#FFF" />
+            <View style={[styles.iconCircle, {borderColor: '#666'}]}>
+              <Ionicons name="list" size={26} color="#888" />
             </View>
-            <Text style={styles.actionText}>Historial</Text>
+            <Text style={[styles.btnLabel, {color: '#888'}]}>Historial</Text>
           </TouchableOpacity>
         </View>
 
       </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', paddingHorizontal: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 20, marginBottom: 25 },
-  greeting: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
-  aiQuote: { color: '#D4AF37', fontSize: 14, fontStyle: 'italic', marginTop: 5, maxWidth: '90%' },
-  refreshBtn: { backgroundColor: '#D4AF37', padding: 8, borderRadius: 20 },
-  
-  mainCard: { backgroundColor: '#1C1C1E', padding: 25, borderRadius: 25, borderWidth: 1, borderColor: '#333', marginBottom: 25 },
-  cardTitle: { color: '#888', fontSize: 12, letterSpacing: 1, marginBottom: 5 },
-  bigMoney: { color: '#FFF', fontSize: 42, fontWeight: 'bold', marginBottom: 20 },
-  barContainer: { height: 10, backgroundColor: '#333', borderRadius: 5, marginBottom: 10, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 5 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between' },
-  limitText: { color: '#666', fontSize: 12 },
-
-  sectionTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 15, marginTop: 10 },
-  
-  // ESTILOS DE MEDALLAS
-  badgesScroll: { marginBottom: 25 },
-  badgeCard: { backgroundColor: '#1C1C1E', width: 90, height: 100, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginRight: 15, borderWidth: 1, borderColor: '#333' },
-  badgeText: { color: '#FFF', fontSize: 12, marginTop: 10, fontWeight: 'bold' },
-  lockedBadge: { opacity: 0.5, borderColor: '#222', backgroundColor: '#111' },
-  lockIcon: { position: 'absolute', top: 5, right: 5 },
-
-  actionGrid: { flexDirection: 'row', gap: 15 },
-  actionBtn: { backgroundColor: '#1C1C1E', flex: 1, padding: 20, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  iconCircle: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  actionText: { color: '#FFF', fontWeight: 'bold' }
-});
+      {/* MODAL MIS DATOS */}
+      <Modal visible={showMyData} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={{alignItems:'center', marginBottom:20}}>
+              <Ionicons name="wallet" size={40} color="#D4AF37" />
+              <Text style={styles.modalTitle}>Mis Datos</Text>
+            </View>
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>Titular:</Text><Text style={styles.dataValue}>{myBankData.name || '---'}</Text></View>
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>Banco:</Text><Text style={styles.dataValue}>{myBankData.bank || '---'}</Text></View>
+            <View style={styles.dataRow}><Text style={styles.dataLabel}>Cuenta:</Text><Text style={styles.dataValue}>{myBank

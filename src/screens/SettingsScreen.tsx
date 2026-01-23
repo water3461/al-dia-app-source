@@ -1,73 +1,154 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { DataService } from '../services/DataService';
+import { useNavigation } from '@react-navigation/native';
+
+const DAYS = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
 
 export default function SettingsScreen() {
-  const navigation = useNavigation<any>();
-  const [notifEnabled, setNotifEnabled] = useState(true);
+  const navigation = useNavigation();
+  const [offers, setOffers] = useState<any>({});
+  const [userData, setUserData] = useState<any>({});
+  
+  // Estado para editar oferta
+  const [editingDay, setEditingDay] = useState<string | null>(null);
+  const [tempOffer, setTempOffer] = useState<any>({});
 
-  const handleReset = async () => {
-    Alert.alert("¿Reiniciar App?", "Se borrarán tus preferencias y volverás al inicio.", [
-      { text: "Cancelar" },
-      { text: "Sí, Borrar", style: "destructive", onPress: async () => {
-          await DataService.resetAll();
-          Alert.alert("Listo", "Cierra y abre la app para ver los cambios.");
-      }}
-    ]);
+  useEffect(() => { loadSettings(); }, []);
+
+  const loadSettings = async () => {
+    const o = await DataService.getOffers();
+    const u = await DataService.getUserData();
+    setOffers(o);
+    setUserData(u);
   };
 
-  const handleHelp = () => {
-    Alert.alert("Soporte AL DÍA", "Contacto: soporte@aldia.cl\nHorario: 9:00 - 18:00");
+  const saveUserData = async () => {
+    await DataService.saveUserData(userData);
+    Alert.alert("¡Listo!", "Tus datos personales se actualizaron.");
+  };
+
+  const openEditOffer = (day: string) => {
+    setEditingDay(day);
+    setTempOffer({ ...offers[day] });
+  };
+
+  const saveOffer = async () => {
+    if (editingDay) {
+      const newOffers = { ...offers, [editingDay]: tempOffer };
+      setOffers(newOffers);
+      await DataService.saveOffers(newOffers);
+      setEditingDay(null);
+    }
+  };
+
+  const resetAll = async () => {
+    Alert.alert("¿Reiniciar?", "Volverán las ofertas por defecto.", [
+      { text: "Cancelar" },
+      { text: "Sí, reiniciar", onPress: async () => {
+        const def = await DataService.resetOffers();
+        setOffers(def);
+      }}
+    ]);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#D4AF37" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Configuración</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#FFF" /></TouchableOpacity>
+        <Text style={styles.title}>Configuración</Text>
+        <View style={{width:24}} />
       </View>
 
-      <ScrollView style={styles.content}>
-        <Text style={styles.sectionTitle}>GENERAL</Text>
-        <View style={styles.row}>
-          <Text style={styles.rowText}>Notificaciones</Text>
-          <Switch value={notifEnabled} onValueChange={setNotifEnabled} trackColor={{ false: "#333", true: "#D4AF37" }} />
+      <ScrollView contentContainerStyle={{padding:20, paddingBottom:50}}>
+        
+        {/* SECCIÓN 1: MIS DATOS */}
+        <Text style={styles.sectionTitle}>👤 Mis Datos Bancarios</Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>Nombre Titular</Text>
+          <TextInput style={styles.input} value={userData.name} onChangeText={t => setUserData({...userData, name: t})} />
+          <Text style={styles.label}>Banco</Text>
+          <TextInput style={styles.input} value={userData.bank} onChangeText={t => setUserData({...userData, bank: t})} />
+          <Text style={styles.label}>N° Cuenta</Text>
+          <TextInput style={styles.input} value={userData.account} onChangeText={t => setUserData({...userData, account: t})} />
+          <Text style={styles.label}>RUT</Text>
+          <TextInput style={styles.input} value={userData.rut} onChangeText={t => setUserData({...userData, rut: t})} />
+          <TouchableOpacity style={styles.saveBtn} onPress={saveUserData}>
+            <Text style={styles.btnText}>Guardar Datos</Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>AYUDA</Text>
-        <TouchableOpacity style={styles.rowArrow} onPress={handleHelp}>
-          <Text style={styles.rowText}>Contactar Soporte</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.rowArrow} onPress={() => Alert.alert("Privacidad", "Tus datos son privados y se guardan solo en tu dispositivo.")}>
-          <Text style={styles.rowText}>Políticas de Privacidad</Text>
-          <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleReset}>
-          <Text style={styles.logoutText}>Reiniciar App de Fábrica</Text>
-        </TouchableOpacity>
+        {/* SECCIÓN 2: CALENDARIO */}
+        <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:30, marginBottom:10}}>
+          <Text style={styles.sectionTitle}>📅 Personalizar Ofertas</Text>
+          <TouchableOpacity onPress={resetAll}><Text style={{color:'#D4AF37'}}>Restaurar</Text></TouchableOpacity>
+        </View>
         
-        <Text style={styles.version}>Versión 1.1.0 - Chile</Text>
+        {DAYS.map(day => (
+          <TouchableOpacity key={day} style={styles.offerRow} onPress={() => openEditOffer(day)}>
+            <View style={[styles.dayBadge, {backgroundColor: offers[day]?.color || '#333'}]}>
+              <Text style={{color:'#FFF', fontWeight:'bold'}}>{day}</Text>
+            </View>
+            <View style={{flex:1, marginLeft:10}}>
+              <Text style={{color:'#FFF', fontWeight:'bold'}}>{offers[day]?.bank}</Text>
+              <Text style={{color:'#888', fontSize:12}}>{offers[day]?.benefit} en {offers[day]?.store}</Text>
+            </View>
+            <Ionicons name="pencil" size={20} color="#666" />
+          </TouchableOpacity>
+        ))}
+
       </ScrollView>
+
+      {/* MODAL EDITAR OFERTA */}
+      <Modal visible={!!editingDay} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Editar {offers[editingDay || '']?.dayFull}</Text>
+            
+            <Text style={styles.label}>Banco / Tarjeta</Text>
+            <TextInput style={styles.inputModal} value={tempOffer.bank} onChangeText={t => setTempOffer({...tempOffer, bank: t})} />
+            
+            <Text style={styles.label}>Beneficio (ej: 40% OFF)</Text>
+            <TextInput style={styles.inputModal} value={tempOffer.benefit} onChangeText={t => setTempOffer({...tempOffer, benefit: t})} />
+            
+            <Text style={styles.label}>Tienda (ej: Sushi)</Text>
+            <TextInput style={styles.inputModal} value={tempOffer.store} onChangeText={t => setTempOffer({...tempOffer, store: t})} />
+
+            <View style={{flexDirection:'row', gap:10, marginTop:20}}>
+              <TouchableOpacity style={[styles.modalBtn, {backgroundColor:'#333'}]} onPress={() => setEditingDay(null)}>
+                <Text style={{color:'#FFF'}}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, {backgroundColor:'#D4AF37'}]} onPress={saveOffer}>
+                <Text style={{color:'#000', fontWeight:'bold'}}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#222' },
-  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginLeft: 15 },
-  content: { padding: 20 },
-  sectionTitle: { color: '#666', fontSize: 12, marginTop: 20, marginBottom: 10, letterSpacing: 1 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#1C1C1E' },
-  rowArrow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#1C1C1E' },
-  rowText: { color: '#FFF', fontSize: 16 },
-  logoutBtn: { marginTop: 40, padding: 15, alignItems: 'center', backgroundColor: '#330000', borderRadius: 10, borderWidth: 1, borderColor: '#FF0000' },
-  logoutText: { color: '#FF4444', fontWeight: 'bold' },
-  version: { color: '#444', textAlign: 'center', marginTop: 30 }
+  header: { flexDirection: 'row', padding: 20, alignItems: 'center', justifyContent: 'space-between' },
+  title: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  sectionTitle: { color: '#D4AF37', fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
+  card: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 15 },
+  label: { color: '#888', fontSize: 12, marginBottom: 5 },
+  input: { backgroundColor: '#000', color: '#FFF', padding: 10, borderRadius: 8, marginBottom: 15, borderWidth:1, borderColor:'#333' },
+  saveBtn: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 10, alignItems: 'center' },
+  btnText: { fontWeight: 'bold' },
+  
+  offerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, borderRadius: 12, marginBottom: 10 },
+  dayBadge: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 20, borderWidth:1, borderColor:'#333' },
+  modalTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign:'center' },
+  inputModal: { backgroundColor: '#000', color: '#FFF', padding: 12, borderRadius: 8, marginBottom: 15, borderWidth:1, borderColor:'#333' },
+  modalBtn: { flex: 1, padding: 15, borderRadius: 10, alignItems: 'center' }
 });
