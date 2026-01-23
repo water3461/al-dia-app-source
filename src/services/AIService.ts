@@ -1,96 +1,68 @@
-// 🔴 PEGA TU API KEY AQUÍ
-const API_KEY = "AIzaSyCBSHrAhlmeuEtp7KyEldwRwCbbexjqG0A"
+// 🔴 1. PEGA TU API KEY AQUÍ
+const API_KEY = "AIzaSyAtudJHZT-hZnG0ei_peCR8f3y-WhNkr7Q"; 
 
-export const AIService = {
+const MODELS_TO_TRY = ["gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-pro", "gemini-pro"];
 
-  // HERRAMIENTA DE DIAGNÓSTICO (Se ejecutará al intentar usar la IA)
-  checkPermissions: async () => {
+async function tryGoogleAI(prompt: string, imageBase64?: string) {
+  let lastError = null;
+  for (const model of MODELS_TO_TRY) {
     try {
-      console.log("🔍 Diagnostico: Consultando modelos permitidos para tu API Key...");
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
-      const data = await response.json();
-      
-      if (data.error) {
-        console.error("❌ ERROR CRÍTICO DE PERMISOS:", data.error.message);
-        return null;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+      const requestBody: any = { contents: [{ parts: [{ text: prompt }] }] };
+      if (imageBase64) {
+        requestBody.contents[0].parts.push({ inline_data: { mime_type: "image/jpeg", data: imageBase64 } });
       }
 
-      if (data.models) {
-        console.log("✅ TU LLAVE TIENE ACCESO A ESTOS MODELOS:");
-        // Filtramos solo los que sirven para generar contenido
-        const available = data.models
-          .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-          .map((m: any) => m.name.replace('models/', ''));
-        
-        console.log(available.join(", "));
-        return available; // Devolvemos la lista real que tienes permitida
-      }
-      return [];
-    } catch (e) {
-      console.error("❌ Error de conexión al diagnosticar:", e);
-      return null;
-    }
-  },
-
-  // 1. ANALIZAR BOLETA
-  analyzeReceipt: async (base64Image: string) => {
-    // Primero revisamos qué modelo tienes disponible
-    const availableModels = await AIService.checkPermissions();
-    
-    // Buscamos si tienes alguno de visión (flash es el mejor)
-    const visionModel = availableModels?.find((m: string) => m.includes('flash')) || "gemini-1.5-flash";
-
-    console.log(`🚀 Usando modelo: ${visionModel}`);
-
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${visionModel}:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Analiza imagen. JSON puro: {\"store\": \"string\", \"date\": \"dd/mm/yyyy\", \"total\": number}. Si falla, null." },
-              { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-            ]
-          }]
-        })
-      });
-
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
       const data = await response.json();
       if (data.error) throw new Error(data.error.message);
+      return data.candidates?.[0]?.content?.parts?.[0]?.text;
+    } catch (error: any) { lastError = error; }
+  }
+  throw lastError;
+}
 
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const cleanJson = text.replace(/```json|```/g, '').trim();
+export const AIService = {
+  
+  // 1. ANALIZAR BOLETA (Formato estricto JSON)
+  analyzeReceipt: async (base64Image: string) => {
+    try {
+      if (API_KEY.includes("TU_API_KEY")) return null;
+      // Instrucción más estricta para limpieza de datos
+      const prompt = "ERES UN LECTOR OCR. Tu único trabajo es extraer datos. Responde SOLO JSON: {\"store\": \"Nombre Tienda (Titulo)\", \"date\": \"dd/mm/yyyy\", \"total\": numero_entero}. Si no es boleta: null.";
+      
+      const textResponse = await tryGoogleAI(prompt, base64Image);
+      if (!textResponse) return null;
+      const cleanJson = textResponse.replace(/```json|```/g, '').trim();
       return JSON.parse(cleanJson);
-
-    } catch (error) {
-      console.error("Error Análisis:", error);
-      return null;
-    }
+    } catch (error) { return null; }
   },
 
-  // 2. CHAT
+  // 2. CHAT ASISTENTE (MODO EJECUTIVO)
   chatWithAI: async (userMessage: string, context: string) => {
-    // Primero revisamos qué modelo tienes disponible
-    const availableModels = await AIService.checkPermissions();
-    
-    // Usamos el primero que encontremos o 'gemini-pro' por defecto
-    const chatModel = availableModels?.[0] || "gemini-pro";
-
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${chatModel}:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Actúa como asesor financiero 'Al Día'. Contexto: ${context}. Pregunta: "${userMessage}".` }] }]
-        })
-      });
+      if (API_KEY.includes("TU_API_KEY")) return "⚠️ Falta API Key.";
 
-      const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error de IA.";
+      // 👇 AQUÍ ESTÁ EL CAMBIO CLAVE: "Ingeniería de Prompt" para jerarquía visual
+      const prompt = `
+        ACTÚA COMO: 'Al Día', un asesor financiero chileno EJECUTIVO y DIRECTO.
+        OBJETIVO: Responder con jerarquía visual y cero relleno.
+        
+        REGLAS DE FORMATO OBLIGATORIAS:
+        1. NO saludes ni te despidas. Ve al grano.
+        2. Usa MAYÚSCULAS para los títulos importantes.
+        3. Usa EMOJIS (💰, 📅, 📉) como viñetas para listar datos.
+        4. Máximo 40 palabras por respuesta total.
+        
+        CONTEXTO ACTUAL:
+        ${context}
+        
+        PREGUNTA DEL USUARIO: "${userMessage}"
+      `;
 
-    } catch (error) {
-      return "Error de conexión.";
-    }
+      const response = await tryGoogleAI(prompt);
+      return response || "Sin respuesta.";
+
+    } catch (error) { return "Error de conexión."; }
   }
 };
