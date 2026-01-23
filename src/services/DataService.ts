@@ -1,87 +1,178 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const HISTORY_KEY = 'aldia_history_v1';
-const OFFERS_KEY = 'aldia_offers_v1';
-const USER_DATA_KEY = 'aldia_userdata_v1';
-const ONBOARDING_KEY = 'aldia_onboarding_v1';
-const WALLET_KEY = 'aldia_wallet_v1';
+// --- Interfaces ---
+export interface Bank {
+  id: string;
+  name: string;
+  type: 'bank' | 'retail' | 'digital'; // Para futuros filtros
+}
 
-const MASTER_OFFERS: any = {
-  'Banco de Chile': { color: '#002C5F', icon: 'card', benefit: '40% Restoranes' },
-  'Banco Santander': { color: '#EC0000', icon: 'card', benefit: '30% Gasolina' },
-  'Banco Falabella': { color: '#137E30', icon: 'cart', benefit: '40% Lunes' },
-  'CMR Falabella': { color: '#3A8D28', icon: 'cart', benefit: 'Puntos Extra' },
-  'BCI': { color: '#002E6D', icon: 'card', benefit: '20% Super' },
-  'Scotiabank': { color: '#EC111A', icon: 'card', benefit: '40% Bares' },
-  'Banco Estado': { color: '#E56E00', icon: 'wallet', benefit: 'Sin Costo' },
-  'Itaú': { color: '#EC7000', icon: 'card', benefit: 'Rutas Gourmet' },
-  'Tenpo': { color: '#0099FF', icon: 'phone-portrait', benefit: 'Devolución $$' },
-  'Mach': { color: '#540099', icon: 'phone-portrait', benefit: 'Cashback' },
-  'Copec Pay': { color: '#E84E1B', icon: 'car', benefit: 'Dcto por Litro' },
-  'Mercado Pago': { color: '#009EE3', icon: 'qr-code', benefit: 'Dcto QR' },
-  'Genérico': { color: '#333', icon: 'wallet', benefit: 'Ahorro' }
-};
+export interface Benefit {
+  id: string;
+  commerceName: string; // Nombre del comercio (ej: Starbucks)
+  bankId: string;       // Banco que ofrece el beneficio
+  cardName: string;     // Tarjeta específica
+  discount: string;     // El beneficio (ej: 40% dcto)
+  conditions: string;   // Días o condiciones (ej: Lunes, Tope $5.000)
+  category: string;     // Comida, Farmacia, Combustible
+}
 
-const DEFAULT_OFFERS_CALENDAR = {
-  'LU': { dayFull: "Lunes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'MA': { dayFull: "Martes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'MI': { dayFull: "Miércoles", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'JU': { dayFull: "Jueves", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'VI': { dayFull: "Viernes", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'SA': { dayFull: "Sábado", bank: "Por definir", ...MASTER_OFFERS['Genérico'] },
-  'DO': { dayFull: "Domingo", bank: "Por definir", ...MASTER_OFFERS['Genérico'] }
-};
+// --- Mock Data: Bancos Disponibles ---
+export const BANKS: Bank[] = [
+  { id: 'banco_falabella', name: 'Banco Falabella', type: 'bank' },
+  { id: 'banco_chile', name: 'Banco de Chile', type: 'bank' },
+  { id: 'santander', name: 'Santander', type: 'bank' },
+  { id: 'scotiabank', name: 'Scotiabank', type: 'bank' },
+  { id: 'bci', name: 'BCI', type: 'bank' },
+  { id: 'itau', name: 'Itaú', type: 'bank' },
+  { id: 'tenpo', name: 'Tenpo', type: 'digital' },
+  { id: 'mercadopago', name: 'Mercado Pago', type: 'digital' },
+  { id: 'cencosud', name: 'Cencosud Scotiabank', type: 'retail' },
+];
 
-export const DataService = {
-  isOnboardingComplete: async () => {
-    try { return (await AsyncStorage.getItem(ONBOARDING_KEY)) === 'true'; } catch (e) { return false; }
+// --- Mock Data: Beneficios (Ejemplos extendidos) ---
+export const BENEFITS: Benefit[] = [
+  // Falabella
+  {
+    id: 'f1',
+    commerceName: 'Starbucks',
+    bankId: 'banco_falabella',
+    cardName: 'CMR Elite',
+    discount: '40% Dcto',
+    conditions: 'Lunes a Jueves. Tope $4.000',
+    category: 'Comida',
   },
-  setOnboardingComplete: async () => { await AsyncStorage.setItem(ONBOARDING_KEY, 'true'); },
+  {
+    id: 'f2',
+    commerceName: 'Doggis',
+    bankId: 'banco_falabella',
+    cardName: 'CMR',
+    discount: '30% Dcto',
+    conditions: 'Viernes. Sin tope',
+    category: 'Comida',
+  },
+  
+  // Banco de Chile
+  {
+    id: 'ch1',
+    commerceName: 'Starbucks',
+    bankId: 'banco_chile',
+    cardName: 'Visa Signature',
+    discount: '25% Dcto',
+    conditions: 'Viernes',
+    category: 'Comida',
+  },
+  {
+    id: 'ch2',
+    commerceName: 'Salcobrand',
+    bankId: 'banco_chile',
+    cardName: 'Todas las tarjetas',
+    discount: '20% Dcto',
+    conditions: 'Lunes y Martes',
+    category: 'Farmacia',
+  },
 
-  saveMyWallet: async (selectedBanks: string[]) => {
-    await AsyncStorage.setItem(WALLET_KEY, JSON.stringify(selectedBanks));
-    if (selectedBanks.length > 0) {
-      const newCalendar: any = { ...DEFAULT_OFFERS_CALENDAR };
-      const days = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
-      days.forEach((day, index) => {
-        const bankName = selectedBanks[index % selectedBanks.length];
-        const bankInfo = MASTER_OFFERS[bankName] || MASTER_OFFERS['Genérico'];
-        newCalendar[day] = {
-          dayFull: newCalendar[day].dayFull,
-          bank: bankName,
-          color: bankInfo.color,
-          icon: bankInfo.icon,
-          benefit: bankInfo.benefit,
-          store: "Comercio Asociado"
-        };
-      });
-      await DataService.saveOffers(newCalendar);
+  // Santander
+  {
+    id: 's1',
+    commerceName: 'Copec',
+    bankId: 'santander',
+    cardName: 'Crédito World Member',
+    discount: '$100/litro',
+    conditions: 'Jueves. Muevo App',
+    category: 'Combustible',
+  },
+  {
+    id: 's2',
+    commerceName: 'Burger King',
+    bankId: 'santander',
+    cardName: 'Débito',
+    discount: '40% Dcto',
+    conditions: 'Martes',
+    category: 'Comida',
+  },
+
+  // Scotiabank
+  {
+    id: 'sc1',
+    commerceName: 'McDonalds',
+    bankId: 'scotiabank',
+    cardName: 'Débito',
+    discount: '30% Dcto',
+    conditions: 'Miércoles',
+    category: 'Comida',
+  },
+  
+  // Tenpo
+  {
+    id: 't1',
+    commerceName: 'Petrobras',
+    bankId: 'tenpo',
+    cardName: 'Tarjeta Prepago',
+    discount: '$200/litro',
+    conditions: 'Lunes y Martes. Tope $8.000',
+    category: 'Combustible',
+  },
+  {
+    id: 't2',
+    commerceName: 'Unimarc',
+    bankId: 'tenpo',
+    cardName: 'Tarjeta Prepago',
+    discount: '20% Dcto',
+    conditions: 'Lunes',
+    category: 'Supermercado',
+  }
+];
+
+// --- Lógica de Servicio ---
+
+/**
+ * Obtiene los IDs de los bancos seleccionados por el usuario desde AsyncStorage.
+ * Retorna un array vacío si no hay nada guardado.
+ */
+export const getUserBanks = async (): Promise<string[]> => {
+  try {
+    const jsonValue = await AsyncStorage.getItem('@user_banks');
+    if (jsonValue != null) {
+      return JSON.parse(jsonValue);
+    } else {
+      // Si es null (primera vez), retornamos vacío
+      return [];
     }
-  },
+  } catch (e) {
+    console.error("Error leyendo bancos del usuario:", e);
+    return [];
+  }
+};
 
-  getMyWallet: async () => {
-    try { const json = await AsyncStorage.getItem(WALLET_KEY); return json ? JSON.parse(json) : []; } catch (e) { return []; }
-  },
-  getHistory: async () => {
-    try { const json = await AsyncStorage.getItem(HISTORY_KEY); return json ? JSON.parse(json) : []; } catch (e) { return []; }
-  },
-  saveReceipt: async (receipt: any) => {
-    try {
-      const current = await DataService.getHistory();
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify([receipt, ...current]));
-      return true;
-    } catch (e) { return false; }
-  },
-  getOffers: async () => {
-    try { const json = await AsyncStorage.getItem(OFFERS_KEY); return json ? JSON.parse(json) : DEFAULT_OFFERS_CALENDAR; } catch (e) { return DEFAULT_OFFERS_CALENDAR; }
-  },
-  saveOffers: async (newOffers: any) => { await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(newOffers)); },
-  resetOffers: async () => { 
-    await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(DEFAULT_OFFERS_CALENDAR)); 
-    return DEFAULT_OFFERS_CALENDAR; 
-  },
-  getUserData: async () => {
-    try { const json = await AsyncStorage.getItem(USER_DATA_KEY); return json ? JSON.parse(json) : {}; } catch (e) { return {}; }
-  },
-  saveUserData: async (data: any) => { await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data)); }
+/**
+ * Busca la mejor opción de pago para un comercio dado,
+ * filtrando SOLO por los bancos que el usuario tiene activos.
+ */
+export const searchBestOption = (query: string, userBanks: string[]): Benefit[] => {
+  // Validación básica
+  if (!query || query.trim().length < 2) return [];
+
+  const normalizedQuery = query.toLowerCase().trim();
+
+  // 1. Filtramos los beneficios
+  const matches = BENEFITS.filter((benefit) => {
+    // A. ¿Coincide el nombre del comercio?
+    const matchCommerce = benefit.commerceName.toLowerCase().includes(normalizedQuery);
+    
+    // B. ¿Tiene el usuario este banco activado?
+    const userHasBank = userBanks.includes(benefit.bankId);
+
+    return matchCommerce && userHasBank;
+  });
+
+  // 2. Ordenamos los resultados
+  // Prioridad: Mayor porcentaje de descuento primero (lógica simple basada en strings)
+  return matches.sort((a, b) => {
+    // Extraemos números de los strings "40% Dcto" -> 40
+    const discountA = parseInt(a.discount.replace(/\D/g, '')) || 0;
+    const discountB = parseInt(b.discount.replace(/\D/g, '')) || 0;
+    
+    return discountB - discountA; // Orden descendente (Mayor descuento primero)
+  });
 };

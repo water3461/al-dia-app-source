@@ -1,97 +1,118 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 
-// SERVICIOS
-import { DataService } from './src/services/DataService';
-import { NotificationService } from './src/services/NotificationService';
-
-// PANTALLAS
+// Importamos todas tus pantallas
 import HomeScreen from './src/screens/HomeScreen';
-import AssistantScreen from './src/screens/AssistantScreen';
+import WalletSetupScreen from './src/screens/WalletSetupScreen';
 import ScanScreen from './src/screens/ScanScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
-import OnboardingScreen from './src/screens/OnboardingScreen';
-import EditBanksScreen from './src/screens/EditBanksScreen';
-import HistoryScreen from './src/screens/HistoryScreen';
-import WalletSetupScreen from './src/screens/WalletSetupScreen'; // <--- NUEVA IMPORTACIÓN
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
-
-function MainTabs() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarStyle: { 
-          backgroundColor: '#111', 
-          borderTopColor: '#333',
-          height: 60,
-          paddingBottom: 8
-        },
-        tabBarActiveTintColor: '#D4AF37',
-        tabBarInactiveTintColor: '#666',
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: any;
-          if (route.name === 'Inicio') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Asistente') iconName = focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline';
-          else if (route.name === 'Escanear') iconName = focused ? 'scan-circle' : 'scan-circle-outline';
-          else if (route.name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Inicio" component={HomeScreen} />
-      <Tab.Screen name="Asistente" component={AssistantScreen} />
-      <Tab.Screen name="Escanear" component={ScanScreen} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} />
-    </Tab.Navigator>
-  );
-}
+type Tab = 'home' | 'scan' | 'settings';
 
 export default function App() {
-  const [initialRoute, setInitialRoute] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSetupComplete, setIsSetupComplete] = useState(false);
+  const [currentTab, setCurrentTab] = useState<Tab>('home');
 
   useEffect(() => {
-    checkOnboarding();
-    NotificationService.registerForPushNotificationsAsync();
-    NotificationService.scheduleDailyReminder();
+    checkSetupStatus();
   }, []);
 
-  const checkOnboarding = async () => {
-    // Verificamos si ya pasó el onboarding
-    const complete = await DataService.isOnboardingComplete();
-    setInitialRoute(complete ? 'Main' : 'Onboarding');
+  const checkSetupStatus = async () => {
+    try {
+      const value = await AsyncStorage.getItem('@setup_complete');
+      setIsSetupComplete(value === 'true');
+    } catch (e) {
+      setIsSetupComplete(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  if (!initialRoute) return null; // Pantalla negra mientras carga
+  const handleSetupFinish = () => {
+    setIsSetupComplete(true);
+    setCurrentTab('home');
+  };
 
+  // --- Renderizadores ---
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-50">
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  // 1. Si no ha configurado la billetera, mostramos el Setup
+  if (!isSetupComplete) {
+    return (
+      <View className="flex-1 bg-gray-50">
+        <StatusBar style="dark" />
+        <WalletSetupScreen onComplete={handleSetupFinish} />
+      </View>
+    );
+  }
+
+  // 2. Si ya configuró, mostramos la App Principal con Tabs
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
-          
-          {/* FLUJO DE BIENVENIDA */}
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="WalletSetup" component={WalletSetupScreen} />
-          
-          {/* APP PRINCIPAL */}
-          <Stack.Screen name="Main" component={MainTabs} />
-          
-          {/* PANTALLAS SECUNDARIAS */}
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="EditBanks" component={EditBanksScreen} />
-          <Stack.Screen name="History" component={HistoryScreen} />
-          
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <View className="flex-1 bg-gray-50">
+      <StatusBar style={currentTab === 'scan' ? 'light' : 'dark'} />
+      
+      {/* Área de Contenido */}
+      <View className="flex-1">
+        {currentTab === 'home' && <HomeScreen />}
+        {currentTab === 'scan' && <ScanScreen />}
+        {currentTab === 'settings' && <SettingsScreen />}
+      </View>
+
+      {/* Barra de Navegación Inferior (Tab Bar) */}
+      <View className="flex-row bg-white border-t border-gray-200 pb-5 pt-3 justify-around items-center">
+        
+        {/* Botón Home */}
+        <TouchableOpacity 
+          onPress={() => setCurrentTab('home')}
+          className="items-center justify-center w-20"
+        >
+          <Ionicons 
+            name={currentTab === 'home' ? "home" : "home-outline"} 
+            size={26} 
+            color={currentTab === 'home' ? "#007AFF" : "#9CA3AF"} 
+          />
+          <Text className={`text-xs mt-1 ${currentTab === 'home' ? "text-blue-600 font-bold" : "text-gray-400"}`}>
+            Inicio
+          </Text>
+        </TouchableOpacity>
+
+        {/* Botón Escáner (Destacado) */}
+        <TouchableOpacity 
+          onPress={() => setCurrentTab('scan')}
+          className="items-center justify-center -mt-8"
+        >
+          <View className="w-16 h-16 bg-blue-600 rounded-full items-center justify-center shadow-lg border-4 border-gray-50">
+            <Ionicons name="scan" size={30} color="white" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Botón Ajustes */}
+        <TouchableOpacity 
+          onPress={() => setCurrentTab('settings')}
+          className="items-center justify-center w-20"
+        >
+          <Ionicons 
+            name={currentTab === 'settings' ? "settings" : "settings-outline"} 
+            size={26} 
+            color={currentTab === 'settings' ? "#007AFF" : "#9CA3AF"} 
+          />
+          <Text className={`text-xs mt-1 ${currentTab === 'settings' ? "text-blue-600 font-bold" : "text-gray-400"}`}>
+            Ajustes
+          </Text>
+        </TouchableOpacity>
+
+      </View>
+    </View>
   );
 }

@@ -1,90 +1,137 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  Switch, 
+  TouchableOpacity, 
+  SafeAreaView,
+  Alert,
+  ActivityIndicator
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { DataService } from '../services/DataService';
+// Asegúrate de que esta ruta coincida con tu estructura de carpetas:
+import { BANKS, Bank } from '../services/DataService'; 
 
-const ALL_BANKS = [
-  { name: 'Banco de Chile', color: '#002C5F' },
-  { name: 'Banco Santander', color: '#EC0000' },
-  { name: 'Banco Falabella', color: '#137E30' },
-  { name: 'BCI', color: '#002E6D' },
-  { name: 'Scotiabank', color: '#EC111A' },
-  { name: 'Banco Estado', color: '#E56E00' },
-  { name: 'Itaú', color: '#EC7000' },
-  { name: 'Tenpo', color: '#0099FF' },
-  { name: 'Mach', color: '#540099' },
-  { name: 'Mercado Pago', color: '#009EE3' },
-  { name: 'Copec Pay', color: '#E84E1B' },
-];
+interface WalletSetupScreenProps {
+  onComplete: () => void;
+}
 
-export default function WalletSetupScreen() {
-  const navigation = useNavigation();
-  const [selected, setSelected] = useState<string[]>([]);
+export default function WalletSetupScreen({ onComplete }: WalletSetupScreenProps) {
+  const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const toggleBank = (name: string) => {
-    if (selected.includes(name)) {
-      setSelected(selected.filter(b => b !== name));
-    } else {
-      setSelected([...selected, name]);
+  useEffect(() => {
+    loadExistingSelection();
+  }, []);
+
+  const loadExistingSelection = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('@user_banks');
+      if (stored) {
+        setSelectedBankIds(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Error cargando bancos", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleContinue = async () => {
-    if (selected.length === 0) {
-      Alert.alert("Ojo 👀", "Selecciona al menos una tarjeta.");
+  const toggleBank = (bankId: string) => {
+    if (selectedBankIds.includes(bankId)) {
+      setSelectedBankIds(selectedBankIds.filter(id => id !== bankId));
+    } else {
+      setSelectedBankIds([...selectedBankIds, bankId]);
+    }
+  };
+
+  const handleSave = async () => {
+    if (selectedBankIds.length === 0) {
+      Alert.alert("Espera", "Selecciona al menos un medio de pago para que la app funcione.");
       return;
     }
-    
-    await DataService.saveMyWallet(selected);
-    await DataService.setOnboardingComplete();
-    
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Main' as never }],
-    });
+
+    setIsSaving(true);
+    try {
+      await AsyncStorage.setItem('@user_banks', JSON.stringify(selectedBankIds));
+      await AsyncStorage.setItem('@setup_complete', 'true');
+      onComplete(); // Avisa a App.tsx que terminamos
+    } catch (e) {
+      Alert.alert("Error", "No se pudo guardar la configuración.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const renderItem = ({ item }: { item: any }) => {
-    const isSelected = selected.includes(item.name);
+  const renderBankItem = ({ item }: { item: Bank }) => {
+    const isSelected = selectedBankIds.includes(item.id);
     return (
-      <TouchableOpacity 
-        style={[styles.card, isSelected && {borderColor: '#D4AF37', backgroundColor: '#222'}]} 
-        onPress={() => toggleBank(item.name)}
-      >
-        <View style={[styles.colorDot, {backgroundColor: item.color}]} />
-        <Text style={[styles.name, isSelected && {color: '#D4AF37'}]}>{item.name}</Text>
-        <Ionicons name={isSelected ? "checkbox" : "square-outline"} size={24} color={isSelected ? "#D4AF37" : "#666"} />
-      </TouchableOpacity>
+      <View className={`flex-row items-center justify-between p-4 mb-3 rounded-xl border ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
+        <View className="flex-row items-center">
+          <View className={`w-10 h-10 rounded-full mr-3 items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}>
+             <Ionicons name="card-outline" size={20} color={isSelected ? 'white' : '#6B7280'} />
+          </View>
+          <Text className={`text-base font-semibold ${isSelected ? 'text-blue-900' : 'text-gray-500'}`}>
+            {item.name}
+          </Text>
+        </View>
+        <Switch
+          trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
+          thumbColor={'#FFFFFF'}
+          onValueChange={() => toggleBank(item.id)}
+          value={isSelected}
+        />
+      </View>
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>¿Qué usas?</Text>
-        <Text style={styles.subtitle}>Elige tus bancos para armar la agenda.</Text>
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
-      <FlatList data={ALL_BANKS} renderItem={renderItem} keyExtractor={item => item.name} contentContainerStyle={{ padding: 20 }} />
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.btn} onPress={handleContinue}>
-          <Text style={styles.btnText}>LISTO 🚀</Text>
-        </TouchableOpacity>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-gray-50 pt-10">
+      <StatusBar style="dark" />
+      <View className="flex-1 px-6">
+        
+        <View className="mt-4 mb-6">
+          <Text className="text-3xl font-bold text-gray-900">Mis Tarjetas</Text>
+          <Text className="text-gray-500 mt-2 text-base">
+            Activa los bancos o apps que usas. AL DÍA filtrará los descuentos según lo que tengas activado aquí.
+          </Text>
+        </View>
+
+        <FlatList
+          data={BANKS}
+          renderItem={renderBankItem}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        />
+
+        <View className="absolute bottom-8 left-6 right-6">
+          <TouchableOpacity 
+            className={`w-full py-4 rounded-xl items-center shadow-sm ${selectedBankIds.length > 0 ? 'bg-blue-600' : 'bg-gray-300'}`}
+            onPress={handleSave}
+            disabled={isSaving || selectedBankIds.length === 0}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-bold text-lg">Guardar y Continuar</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 20, paddingTop: 40 },
-  title: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
-  subtitle: { color: '#888', fontSize: 16 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, borderRadius: 15, marginBottom: 10, borderWidth: 1, borderColor: '#333' },
-  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 15 },
-  name: { color: '#FFF', fontSize: 16, fontWeight: 'bold', flex: 1 },
-  footer: { padding: 20, borderTopWidth: 1, borderColor: '#222' },
-  btn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
-  btnText: { fontWeight: 'bold', fontSize: 16 }
-});

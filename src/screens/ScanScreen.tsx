@@ -1,197 +1,95 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, 
-  TextInput, KeyboardAvoidingView, Platform, ScrollView, Vibration, Modal 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  SafeAreaView, 
+  Image,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; 
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { DataService } from '../services/DataService';
-import { AIService } from '../services/AIService';
+import { StatusBar } from 'expo-status-bar';
+
+// Este componente simula el reconocimiento visual sin necesitar la cámara física aún
+// para evitar errores de compilación si no has instalado 'expo-camera'.
 
 export default function ScanScreen() {
-  const navigation = useNavigation();
-  const [permission, requestPermission] = useCameraPermissions();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [scannedData, setScannedData] = useState<any>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
 
-  if (!permission) return <View style={styles.container} />;
-  
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={[styles.container, styles.center]}>
-        {/* CORRECCIÓN AQUÍ: Usamos 'videocam-off' en vez de 'camera-off' */}
-        <Ionicons name="videocam-off" size={50} color="#666" style={{marginBottom:20}} />
-        <Text style={{color:'white', marginBottom:20, fontSize:16}}>Necesito permiso para ver las boletas</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}>
-          <Text style={styles.btnTextBlack}>DAR PERMISO</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  const handleSimulateScan = () => {
+    setIsScanning(true);
+    setScannedData(null);
 
-  const takePicture = async () => {
-    if (!cameraRef.current) return;
-    try {
-      setIsProcessing(true);
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.4, base64: true });
-      if (photo?.base64) {
-        const result = await AIService.analyzeReceipt(photo.base64);
-        if (result && result.total) {
-          setScannedData({
-            store: result.store || "Comercio",
-            date: result.date || new Date().toLocaleDateString('es-CL'),
-            total: result.total.toString(),
-          });
-        } else {
-          Alert.alert("Ups", "No pude leer el total. Intenta acercarte más. 🧐");
-        }
-      }
-      setIsProcessing(false);
-    } catch (error) {
-      setIsProcessing(false);
-      Alert.alert("Error", "Algo falló al tomar la foto.");
-    }
-  };
-
-  const handleSave = async () => {
-    if (scannedData) {
-      const cleanTotal = scannedData.total.toString().replace(/[^0-9]/g, '');
-      const finalTotal = parseInt(cleanTotal);
-
-      if (isNaN(finalTotal) || finalTotal === 0) {
-        Alert.alert("Error", "El total no es válido.");
-        return;
-      }
-
-      await DataService.saveReceipt({
-        id: Date.now().toString(),
-        store: scannedData.store,
-        total: finalTotal,
-        date: scannedData.date,
-      });
+    // Simulamos un retraso de "procesamiento de imagen"
+    setTimeout(() => {
+      setIsScanning(false);
+      setScannedData('Starbucks'); // Simulamos que detectó "Starbucks"
       
-      Vibration.vibrate([0, 50, 50, 50]); 
-      setShowSuccess(true); 
-      
-      setTimeout(() => {
-        setShowSuccess(false);
-        setScannedData(null);
-        navigation.goBack(); 
-      }, 1800);
-    }
+      Alert.alert(
+        "¡Local Detectado!", 
+        "Hemos identificado 'Starbucks' en la imagen. Buscando descuentos...",
+        [
+          { text: "Ver Beneficios", onPress: () => console.log("Navegar a resultados...") }
+        ]
+      );
+    }, 2000);
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView className="flex-1 bg-black pt-10">
+      <StatusBar style="light" />
       
-      {/* MODAL DE ÉXITO */}
-      <Modal visible={showSuccess} transparent animationType="fade">
-        <View style={styles.successOverlay}>
-          <View style={styles.successCard}>
-            <Ionicons name="checkmark-circle" size={80} color="#4CD964" />
-            <Text style={styles.successTitle}>¡GUARDADO!</Text>
-            <Text style={styles.successSub}>Sumando puntos... 📈</Text>
-          </View>
+      {/* Header Overlay */}
+      <View className="absolute top-12 left-0 right-0 z-10 flex-row justify-between px-5">
+        <TouchableOpacity className="p-2 bg-black/50 rounded-full">
+          <Ionicons name="close" size={24} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity className="p-2 bg-black/50 rounded-full">
+          <Ionicons name="flash-off" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Viewfinder Area (Simulada) */}
+      <View className="flex-1 justify-center items-center relative">
+        <View className="w-full h-full absolute bg-gray-900 opacity-50" />
+        
+        {/* Marco de enfoque */}
+        <View className="w-72 h-72 border-2 border-white/80 rounded-3xl items-center justify-center relative">
+          <View className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl-xl" />
+          <View className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr-xl" />
+          <View className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl-xl" />
+          <View className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br-xl" />
+
+          {isScanning && (
+            <ActivityIndicator size="large" color="#3B82F6" />
+          )}
         </View>
-      </Modal>
 
-      {!scannedData ? (
-        <CameraView style={styles.camera} facing="back" ref={cameraRef}>
-          <SafeAreaView style={styles.overlay}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-              <Ionicons name="close" size={28} color="white" />
-            </TouchableOpacity>
-            
-            <View style={styles.focusFrame} />
+        <Text className="text-white text-center mt-8 font-medium bg-black/40 px-4 py-2 rounded-lg overflow-hidden">
+          {isScanning ? "Analizando comercio..." : "Apunta al logo del comercio"}
+        </Text>
+      </View>
 
-            <View style={styles.bottomBar}>
-              {isProcessing ? (
-                <View style={styles.loadingBox}>
-                  <ActivityIndicator size="small" color="#000" />
-                  <Text style={{fontWeight:'bold', marginLeft:10}}>IA Analizando...</Text>
-                </View>
-              ) : (
-                <TouchableOpacity onPress={takePicture} style={styles.shutterBtn}>
-                  <View style={styles.shutterInner} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </SafeAreaView>
-        </CameraView>
-      ) : (
-        <SafeAreaView style={styles.container}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
-            <ScrollView contentContainerStyle={styles.resultContainer}>
-              <Text style={styles.titleResult}>Confirma el Gasto</Text>
-              
-              <View style={styles.ticket}>
-                <View style={{alignItems:'center', marginBottom:20}}>
-                  <Ionicons name="receipt" size={40} color="#D4AF37" />
-                </View>
+      {/* Controls Overlay */}
+      <View className="bg-black pb-10 pt-5 px-10 flex-row justify-around items-center">
+        <TouchableOpacity className="items-center">
+            <Ionicons name="images-outline" size={28} color="white" />
+        </TouchableOpacity>
 
-                <Text style={styles.label}>COMERCIO</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={scannedData.store} 
-                  onChangeText={(t) => setScannedData({...scannedData, store: t})} 
-                />
-                
-                <View style={styles.divider} />
-                
-                <Text style={styles.label}>TOTAL ($)</Text>
-                <TextInput 
-                  style={[styles.input, styles.totalInput]} 
-                  value={scannedData.total} 
-                  onChangeText={(t) => setScannedData({...scannedData, total: t})} 
-                  keyboardType="numeric" 
-                />
-              </View>
+        {/* Botón de Captura */}
+        <TouchableOpacity 
+          onPress={handleSimulateScan}
+          className="w-20 h-20 bg-white rounded-full items-center justify-center border-4 border-gray-300"
+        >
+          <View className="w-16 h-16 bg-white rounded-full border-2 border-black" />
+        </TouchableOpacity>
 
-              <View style={{flexDirection:'row', gap:15, width:'100%'}}>
-                <TouchableOpacity onPress={() => setScannedData(null)} style={styles.btnCancel}>
-                  <Text style={{color:'#FFF', fontWeight:'bold'}}>Reintentar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.btnGold} onPress={handleSave}>
-                  <Text style={styles.btnTextBlack}>CONFIRMAR ✅</Text>
-                </TouchableOpacity>
-              </View>
-
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      )}
-    </View>
+        <TouchableOpacity className="items-center">
+            <Ionicons name="refresh-outline" size={28} color="white" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  camera: { flex: 1 },
-  overlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
-  closeBtn: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, borderRadius: 20 },
-  focusFrame: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', marginVertical: 40, borderRadius: 20, borderStyle: 'dashed' },
-  bottomBar: { alignItems: 'center', marginBottom: 20 },
-  shutterBtn: { width: 70, height: 70, borderRadius: 35, borderWidth: 5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  shutterInner: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#FFF' },
-  loadingBox: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 30, flexDirection: 'row', alignItems: 'center' },
-  resultContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
-  titleResult: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 30 },
-  ticket: { backgroundColor: '#1C1C1E', padding: 30, borderRadius: 20, width: '100%', borderWidth: 1, borderColor: '#333', marginBottom: 30 },
-  label: { color: '#666', fontSize: 10, marginBottom: 5, fontWeight:'bold', letterSpacing:1 },
-  input: { color: '#FFF', fontSize: 18, borderBottomWidth: 1, borderColor: '#333', paddingVertical: 10, marginBottom: 20 },
-  totalInput: { color: '#D4AF37', fontSize: 32, fontWeight: 'bold', textAlign:'center', borderBottomWidth:0 },
-  divider: { height: 1, backgroundColor: '#333', marginVertical: 10 },
-  btnGold: { flex: 1, backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
-  btnCancel: { flex: 1, backgroundColor: '#333', padding: 18, borderRadius: 15, alignItems: 'center' },
-  btnTextBlack: { fontWeight: 'bold', fontSize: 16 },
-  successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
-  successCard: { backgroundColor: '#1C1C1E', padding: 40, borderRadius: 30, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  successTitle: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginTop: 20 },
-  successSub: { color: '#888', marginTop: 10 }
-});

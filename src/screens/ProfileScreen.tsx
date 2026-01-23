@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { DataService } from '../services/DataService';
-import QRCode from 'react-native-qrcode-svg'; // Si no tienes esta librería, usaremos un icono gigante por ahora.
-
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const [userData, setUserData] = useState<any>({});
