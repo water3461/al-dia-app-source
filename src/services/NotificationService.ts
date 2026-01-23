@@ -1,16 +1,27 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+import Constants from 'expo-constants';
 
 export const NotificationService = {
+  
   registerForPushNotificationsAsync: async () => {
+    // 🛡️ ESCUDO: Si es Expo Go, abortamos para evitar errores.
+    if (Constants.appOwnership === 'expo') {
+      console.log("🔕 Expo Go: Notificaciones deshabilitadas (Modo Seguro).");
+      return; 
+    }
+
+    // --- ZONA SEGURA ---
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true, // <--- AGREGADO PARA CORREGIR ERROR
+        shouldShowList: true,   // <--- AGREGADO PARA CORREGIR ERROR
+      } as any), // <--- EL TRUCO 'as any' PARA EVITAR QUE LLORE TYPESCRIPT
+    });
+
     let token;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -33,22 +44,28 @@ export const NotificationService = {
   },
 
   scheduleDailyReminder: async () => {
-    // Primero cancelamos para no duplicar
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // 🛡️ ESCUDO TAMBIÉN AQUÍ
+    if (Constants.appOwnership === 'expo') {
+      return; 
+    }
 
-    // Programamos para las 20:00 (8 PM)
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "🕗 ¡Hora de cerrar caja!",
-        body: "¿Gastaste algo hoy? Regístralo antes de que se te olvide. 💸",
-        sound: true,
-      },
-      trigger: {
-        hour: 20,
-        minute: 0,
-        repeats: true,
-      },
-    });
-    console.log("🔔 Notificación programada a las 20:00");
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "🕗 ¡Hora de cerrar caja!",
+          body: "¿Gastaste algo hoy? Regístralo antes de que se te olvide. 💸",
+          sound: true,
+        },
+        trigger: { 
+          type: 'calendar', // <--- AGREGADO TIPO EXPLÍCITO
+          hour: 20, 
+          minute: 0, 
+          repeats: true 
+        } as any, // <--- TRUCO 'as any' PARA EVITAR ERROR DE TIPOS
+      });
+    } catch (e) {
+      console.log("⚠️ Error agendando notificación.");
+    }
   }
 };

@@ -1,72 +1,105 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { DataService } from '../services/DataService';
 
-const HISTORY_KEY = 'aldia_history_v1';
-const OFFERS_KEY = 'aldia_offers_v1';
-const USER_DATA_KEY = 'aldia_userdata_v1';
+// LISTA DE BANCOS DISPONIBLES
+const ALL_BANKS = [
+  { name: 'Banco de Chile', color: '#002C5F' },
+  { name: 'Banco Santander', color: '#EC0000' },
+  { name: 'Banco Falabella', color: '#137E30' },
+  { name: 'BCI', color: '#002E6D' },
+  { name: 'Scotiabank', color: '#EC111A' },
+  { name: 'Banco Estado', color: '#E56E00' },
+  { name: 'Itaú', color: '#EC7000' },
+  { name: 'Tenpo', color: '#0099FF' },
+  { name: 'Mach', color: '#540099' },
+  { name: 'Mercado Pago', color: '#009EE3' },
+  { name: 'Copec Pay', color: '#E84E1B' },
+];
 
-// OFERTAS POR DEFECTO (Si no has editado nada)
-const DEFAULT_OFFERS = {
-  'LU': { dayFull: "Lunes", bank: "Banco de Chile", benefit: "40% DCTO", store: "Sushi & Wok", color: '#002C5F', icon: 'fish' },
-  'MA': { dayFull: "Martes", bank: "Banco Falabella", benefit: "2x1 PIZZAS", store: "Papa John's", color: '#137E30', icon: 'pizza' },
-  'MI': { dayFull: "Miércoles", bank: "BCI / Lider BCI", benefit: "20% TOTAL", store: "Lider", color: '#002E6D', icon: 'cart' },
-  'JU': { dayFull: "Jueves", bank: "Tenpo", benefit: "30% OFF", store: "Burger King", color: '#0099FF', icon: 'fast-food' },
-  'VI': { dayFull: "Viernes", bank: "Scotiabank", benefit: "40% BARES", store: "Ruta Gastronómica", color: '#EC111A', icon: 'beer' },
-  'SA': { dayFull: "Sábado", bank: "Copec App", benefit: "$25/lt DCTO", store: "Combustible", color: '#E84E1B', icon: 'car' },
-  'DO': { dayFull: "Domingo", bank: "CMR Falabella", benefit: "GRANDES OFERTAS", store: "Homecenter", color: '#3A8D28', icon: 'hammer' }
-};
+export default function WalletSetupScreen() {
+  const navigation = useNavigation();
+  const [selected, setSelected] = useState<string[]>([]);
 
-const DEFAULT_USER = { 
-  name: "Tu Nombre", bank: "Tu Banco", account: "00-00000-00", rut: "11.111.111-1", email: "contacto@email.com"
-};
+  const toggleBank = (name: string) => {
+    if (selected.includes(name)) {
+      setSelected(selected.filter(b => b !== name));
+    } else {
+      setSelected([...selected, name]);
+    }
+  };
 
-export const DataService = {
-  // --- HISTORIAL DE GASTOS ---
-  getHistory: async () => {
-    try {
-      const json = await AsyncStorage.getItem(HISTORY_KEY);
-      return json ? JSON.parse(json) : [];
-    } catch (e) { return []; }
-  },
+  const handleContinue = async () => {
+    if (selected.length === 0) {
+      Alert.alert("Ojo 👀", "Selecciona al menos una tarjeta para que la IA funcione.");
+      return;
+    }
+    
+    // Guardamos y la magia de DataService configura el calendario sola
+    await DataService.saveMyWallet(selected);
+    await DataService.setOnboardingComplete();
+    
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Main' as never }],
+    });
+  };
 
-  saveReceipt: async (receipt: any) => {
-    try {
-      const current = await DataService.getHistory();
-      const newHistory = [receipt, ...current];
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-      return true;
-    } catch (e) { return false; }
-  },
+  const renderItem = ({ item }: { item: any }) => {
+    const isSelected = selected.includes(item.name);
+    return (
+      <TouchableOpacity 
+        style={[styles.card, isSelected && {borderColor: '#D4AF37', backgroundColor: '#222'}]} 
+        onPress={() => toggleBank(item.name)}
+      >
+        <View style={[styles.colorDot, {backgroundColor: item.color}]} />
+        <Text style={[styles.name, isSelected && {color: '#D4AF37'}]}>{item.name}</Text>
+        <Ionicons 
+          name={isSelected ? "checkbox" : "square-outline"} 
+          size={24} 
+          color={isSelected ? "#D4AF37" : "#666"} 
+        />
+      </TouchableOpacity>
+    );
+  };
 
-  clearHistory: async () => {
-    await AsyncStorage.removeItem(HISTORY_KEY);
-  },
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>¿Qué tienes en tu billetera?</Text>
+        <Text style={styles.subtitle}>Selecciona tus bancos y nosotros armamos tu calendario de descuentos.</Text>
+      </View>
 
-  // --- OFERTAS PERSONALIZABLES ---
-  getOffers: async () => {
-    try {
-      const json = await AsyncStorage.getItem(OFFERS_KEY);
-      return json ? JSON.parse(json) : DEFAULT_OFFERS;
-    } catch (e) { return DEFAULT_OFFERS; }
-  },
+      <FlatList
+        data={ALL_BANKS}
+        renderItem={renderItem}
+        keyExtractor={item => item.name}
+        contentContainerStyle={{ padding: 20 }}
+      />
 
-  saveOffers: async (newOffers: any) => {
-    await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(newOffers));
-  },
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.btn} onPress={handleContinue}>
+          <Text style={styles.btnText}>LISTO, ARRANCAR 🚀</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
 
-  resetOffers: async () => {
-    await AsyncStorage.setItem(OFFERS_KEY, JSON.stringify(DEFAULT_OFFERS));
-    return DEFAULT_OFFERS;
-  },
-
-  // --- MIS DATOS BANCARIOS ---
-  getUserData: async () => {
-    try {
-      const json = await AsyncStorage.getItem(USER_DATA_KEY);
-      return json ? JSON.parse(json) : DEFAULT_USER;
-    } catch (e) { return DEFAULT_USER; }
-  },
-
-  saveUserData: async (data: any) => {
-    await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data));
-  }
-};
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000' },
+  header: { padding: 20, paddingTop: 40 },
+  title: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
+  subtitle: { color: '#888', fontSize: 16, lineHeight: 22 },
+  
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, borderRadius: 15, marginBottom: 10, borderWidth: 1, borderColor: '#333' },
+  colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 15 },
+  name: { color: '#FFF', fontSize: 16, fontWeight: 'bold', flex: 1 },
+  
+  footer: { padding: 20, borderTopWidth: 1, borderColor: '#222' },
+  btn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
+  btnText: { fontWeight: 'bold', fontSize: 16, letterSpacing: 1 }
+});

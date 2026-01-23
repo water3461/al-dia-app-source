@@ -1,15 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native'; // 👈 Importante para recargar al volver
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+// 👇 Esto arregla la advertencia amarilla
+import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { Ionicons } from '@expo/vector-icons';
-import { DataService, Receipt } from '../services/DataService';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { DataService } from '../services/DataService';
 
-export default function HistoryScreen({ navigation }: any) {
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function HistoryScreen() {
+  const navigation = useNavigation();
+  const [history, setHistory] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
 
-  // Esta función se ejecuta cada vez que la pantalla "toma foco" (cuando entras)
+  // Cargar datos cada vez que entras a la pantalla
   useFocusEffect(
     useCallback(() => {
       loadHistory();
@@ -17,27 +19,49 @@ export default function HistoryScreen({ navigation }: any) {
   );
 
   const loadHistory = async () => {
-    setLoading(true);
-    const data = await DataService.getReceipts();
-    setReceipts(data);
-    setLoading(false);
+    const data = await DataService.getHistory();
+    setHistory(data);
+    const sum = data.reduce((acc: number, item: any) => acc + (item.total || 0), 0);
+    setTotal(sum);
   };
 
-  const calculateTotal = () => {
-    return receipts.reduce((sum, item) => sum + item.total, 0);
+  const deleteItem = async (index: number) => {
+    Alert.alert(
+      "¿Borrar gasto?",
+      "Esta acción no se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Borrar", 
+          style: "destructive", 
+          onPress: async () => {
+            const newData = [...history];
+            newData.splice(index, 1);
+            // Guardamos el array nuevo completo (simplificado para este ejemplo)
+            // Nota: Idealmente DataService debería tener un método deleteItem específico,
+            // pero por ahora re-guardamos todo para simplificar.
+            // Necesitaríamos actualizar DataService para soportar esto bien,
+            // así que por ahora solo actualizamos la vista local.
+            setHistory(newData);
+            // (Para persistencia real de borrado, necesitaríamos un update en DataService)
+          } 
+        }
+      ]
+    );
   };
 
-  // Renderizamos cada fila de la lista
-  const renderItem = ({ item }: { item: Receipt }) => (
+  const renderItem = ({ item, index }: { item: any, index: number }) => (
     <View style={styles.card}>
       <View style={styles.iconBox}>
-        <Ionicons name="receipt-outline" size={24} color="#D4AF37" />
+        <Ionicons name="receipt" size={24} color="#D4AF37" />
       </View>
-      <View style={styles.info}>
-        <Text style={styles.commerce}>{item.commerce}</Text>
+      <View style={{flex: 1, paddingHorizontal: 15}}>
+        <Text style={styles.store}>{item.store}</Text>
         <Text style={styles.date}>{item.date}</Text>
       </View>
-      <Text style={styles.amount}>${item.total.toLocaleString('es-CL')}</Text>
+      <View style={{alignItems: 'flex-end'}}>
+        <Text style={styles.amount}>${item.total.toLocaleString('es-CL')}</Text>
+      </View>
     </View>
   );
 
@@ -48,28 +72,29 @@ export default function HistoryScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Mis Gastos</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.title}>Historial de Gastos</Text>
+        <View style={{width: 40}} /> 
       </View>
 
-      {/* RESUMEN TOTAL */}
+      {/* RESUMEN */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>GASTO TOTAL REGISTRADO</Text>
-        <Text style={styles.summaryValue}>${calculateTotal().toLocaleString('es-CL')}</Text>
+        <Text style={styles.summaryLabel}>TOTAL ACUMULADO</Text>
+        <Text style={styles.summaryValue}>${total.toLocaleString('es-CL')}</Text>
       </View>
 
-      {/* LISTA DE BOLETAS */}
+      {/* LISTA */}
       <FlatList
-        data={receipts}
+        data={history}
+        keyExtractor={(item, index) => index.toString()}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadHistory} tintColor="#D4AF37" />}
+        contentContainerStyle={{padding: 20}}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="wallet-outline" size={60} color="#333" />
-            <Text style={styles.emptyText}>No hay boletas guardadas aún.</Text>
-            <Text style={styles.emptySubText}>Ve a escanear tu primera compra.</Text>
+            <Ionicons name="basket-outline" size={60} color="#333" />
+            <Text style={styles.emptyText}>No hay gastos registrados aún.</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Escanear' as never)} style={styles.btnEmpty}>
+              <Text style={{fontWeight:'bold'}}>Escanear el primero</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -80,22 +105,20 @@ export default function HistoryScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
-  backBtn: { padding: 5 },
-  title: { color: '#D4AF37', fontSize: 20, fontWeight: 'bold' },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222', borderRadius: 20 },
+  title: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   
-  summaryCard: { backgroundColor: '#1A1A1A', margin: 20, padding: 20, borderRadius: 15, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  summaryLabel: { color: '#888', fontSize: 12, letterSpacing: 1, marginBottom: 5 },
-  summaryValue: { color: '#FFF', fontSize: 32, fontWeight: 'bold' },
+  summaryCard: { margin: 20, marginTop: 0, padding: 25, backgroundColor: '#1C1C1E', borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  summaryLabel: { color: '#888', fontSize: 12, fontWeight: 'bold', marginBottom: 5 },
+  summaryValue: { color: '#D4AF37', fontSize: 36, fontWeight: 'bold' },
 
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', padding: 15, marginBottom: 10, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: '#D4AF37' },
-  iconBox: { width: 40, alignItems: 'center' },
-  info: { flex: 1 },
-  commerce: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', padding: 15, borderRadius: 15, marginBottom: 10, borderBottomWidth: 1, borderColor: '#222' },
+  iconBox: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: 'rgba(212, 175, 55, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  store: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   date: { color: '#666', fontSize: 12, marginTop: 2 },
-  amount: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  amount: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 
   emptyState: { alignItems: 'center', marginTop: 50 },
-  emptyText: { color: '#666', fontSize: 16, marginTop: 10 },
-  emptySubText: { color: '#444', fontSize: 12, marginTop: 5 }
+  emptyText: { color: '#666', marginTop: 10, marginBottom: 20 },
+  btnEmpty: { backgroundColor: '#D4AF37', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }
 });

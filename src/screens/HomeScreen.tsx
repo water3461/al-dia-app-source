@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, 
-  TextInput, Modal, Vibration
+  TextInput, Vibration, Modal 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,54 +15,51 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   
-  // ESTADOS DE DATOS
+  // ESTADOS DE DINERO
   const [totalSpent, setTotalSpent] = useState(0);
+  const [totalSaved, setTotalSaved] = useState(0); // Nuevo estado de Ahorro
   const [dailyQuote, setDailyQuote] = useState("Conectando...");
-  const [weeklyOffers, setWeeklyOffers] = useState<any>({}); // Ofertas dinámicas
-  const [myBankData, setMyBankData] = useState<any>({});   // Datos bancarios dinámicos
+  const [weeklyOffers, setWeeklyOffers] = useState<any>({});
 
   // ESTADOS DE INTERFAZ
-  const [selectedDay, setSelectedDay] = useState('LU'); // Día seleccionado
+  const [selectedDay, setSelectedDay] = useState<string | null>(null); // Para el Modal
   const [storeSearch, setStoreSearch] = useState("");
   const [cardRecommendation, setCardRecommendation] = useState<string | null>(null);
-  const [showMyData, setShowMyData] = useState(false);
 
-  // CARGA DE DATOS (Se ejecuta al entrar a la pantalla)
   const loadData = async () => {
-    // 1. Historial y Gasto
     const history = await DataService.getHistory();
     const total = history.reduce((acc: any, item: any) => acc + item.total, 0);
     setTotalSpent(total);
-
-    // 2. Cargar Configuración Personal (Persistencia)
+    
+    // NOTA: En una app real, el ahorro también vendría del historial.
+    // Aquí lo simulamos o lo guardamos en DataService si quieres persistencia.
+    
     const offers = await DataService.getOffers();
     setWeeklyOffers(offers);
-    
-    const userData = await DataService.getUserData();
-    setMyBankData(userData);
-
-    // 3. Frase IA
     const quote = await AIService.generateDailyQuote(total);
     setDailyQuote(quote);
-    
     setRefreshing(false);
   };
 
-  // Forzar recarga al volver de Settings
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const handleCardHunt = async () => {
     if (!storeSearch.trim()) return;
     Vibration.vibrate(50);
-    setCardRecommendation("🤖 Analizando...");
+    setCardRecommendation("Analizando..."); // Feedback rápido
     const rec = await AIService.recommendCard(storeSearch);
     setCardRecommendation(rec);
   };
 
-  // Obtener oferta del día seleccionado (o fallback vacío)
-  const currentOffer = weeklyOffers[selectedDay] || {
-    color: '#333', dayFull: 'Cargando...', bank: '...', benefit: '...', store: '...', icon: 'help'
+  // Función cuando el usuario dice "Lo usé"
+  const handleUsedBenefit = (savingsAmount: number) => {
+    setTotalSaved(prev => prev + savingsAmount);
+    setSelectedDay(null); // Cerrar modal
+    Alert.alert("¡Buena! 🤑", "Ese ahorro ya suma a tu bolsillo.");
   };
+
+  // Datos del día seleccionado para el Modal
+  const modalOffer = selectedDay ? weeklyOffers[selectedDay] : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -70,200 +67,199 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); loadData();}} tintColor="#D4AF37"/>}
       >
-        {/* HEADER */}
+        {/* HEADER MINIMALISTA */}
         <View style={styles.header}>
-          <View style={{flex:1}}>
+          <View>
             <Text style={styles.greeting}>Hola, Partner 🤜🤛</Text>
-            <Text style={styles.aiQuote}>"{dailyQuote}"</Text>
+            <Text style={styles.aiQuote}>{dailyQuote}</Text>
+          </View>
+          {/* Ya no hay botón de settings aquí */}
+        </View>
+
+        {/* EL "LUJO": ASISTENTE DE PAGO (FEATURE PRINCIPAL) */}
+        <View style={styles.luxuryHunter}>
+          <View style={styles.hunterHeader}>
+            <Ionicons name="sparkles" size={20} color="#D4AF37" />
+            <Text style={styles.hunterTitle}>ASISTENTE INTELIGENTE</Text>
           </View>
           
-          <View style={{flexDirection: 'row', gap: 10}}>
-            {/* BOTÓN CONFIGURACIÓN (NUEVO) */}
-            <TouchableOpacity onPress={() => navigation.navigate('Settings' as never)} style={styles.iconBtn}>
-              <Ionicons name="settings-sharp" size={24} color="#FFF" />
-            </TouchableOpacity>
-
-            {/* BOTÓN MIS DATOS */}
-            <TouchableOpacity onPress={() => setShowMyData(true)} style={[styles.iconBtn, {backgroundColor: '#D4AF37'}]}>
-              <Ionicons name="card-outline" size={24} color="#000" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* CALENDARIO DE BENEFICIOS */}
-        <View style={styles.sectionContainer}>
-          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
-            <Text style={styles.sectionTitle}>📅 Tu Agenda de Ahorro</Text>
-            <Text style={{color: currentOffer.color || '#FFF', fontWeight:'bold', fontSize:12}}>
-              {currentOffer.dayFull}
-            </Text>
-          </View>
-
-          <View style={styles.calendarRow}>
-            {DAYS.map((day) => (
-              <TouchableOpacity 
-                key={day} 
-                onPress={() => {setSelectedDay(day); Vibration.vibrate(15);}}
-                style={[
-                  styles.dayCircle, 
-                  selectedDay === day && {
-                    backgroundColor: weeklyOffers[day]?.color || '#333', 
-                    borderColor: weeklyOffers[day]?.color || '#333'
-                  }
-                ]}
-              >
-                <Text style={[styles.dayText, selectedDay === day && {color:'#FFF'}]}>{day}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* TARJETA DE BENEFICIO DINÁMICA */}
-          <View style={[styles.benefitCard, { backgroundColor: currentOffer.color || '#222' }]}>
-            <View style={styles.benefitHeader}>
-               <Ionicons name={currentOffer.icon as any || 'help'} size={24} color="rgba(255,255,255,0.8)" />
-               <Text style={styles.bankName}>{currentOffer.bank}</Text>
-            </View>
-            <Text style={styles.benefitBig}>{currentOffer.benefit}</Text>
-            <Text style={styles.benefitStore}>{currentOffer.store}</Text>
-            <View style={styles.cardChip} /> 
-          </View>
-        </View>
-
-        {/* CAZADOR DE DESCUENTOS */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>🕵️‍♂️ ¿Con qué pago?</Text>
-          <View style={styles.hunterRow}>
+          <Text style={styles.hunterQuestion}>¿Qué vas a comprar ahora?</Text>
+          
+          <View style={styles.searchBox}>
             <TextInput 
-              style={styles.searchInput} placeholder="Escribe tienda (ej: Zara...)" placeholderTextColor="#666"
-              value={storeSearch} onChangeText={setStoreSearch}
+              style={styles.searchInput} 
+              placeholder="Ej: Zapatillas, Supermercado..." 
+              placeholderTextColor="#666"
+              value={storeSearch} 
+              onChangeText={setStoreSearch}
             />
             <TouchableOpacity style={styles.searchBtn} onPress={handleCardHunt}>
-              <Ionicons name="search" size={24} color="#000" />
+              <Ionicons name="arrow-forward" size={24} color="#000" />
             </TouchableOpacity>
           </View>
+
           {cardRecommendation && (
-            <View style={styles.recBubble}><Text style={styles.aiRecText}>{cardRecommendation}</Text></View>
+            <View style={styles.recResult}>
+              <Text style={styles.recText}>{cardRecommendation}</Text>
+            </View>
           )}
         </View>
 
-        {/* GASTO TOTAL */}
-        <View style={styles.moneyCard}>
-          <Text style={styles.moneyLabel}>GASTO ACUMULADO</Text>
-          <Text style={styles.moneyValue}>${totalSpent.toLocaleString('es-CL')}</Text>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${Math.min(totalSpent/500000, 1) * 100}%` }]} />
+        {/* METAS: GASTO VS AHORRO */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>GASTADO</Text>
+            <Text style={styles.statValue}>${totalSpent.toLocaleString('es-CL')}</Text>
+          </View>
+          <View style={[styles.statCard, {borderColor: '#4CD964'}]}>
+            <Text style={[styles.statLabel, {color:'#4CD964'}]}>AHORRADO</Text>
+            <Text style={[styles.statValue, {color:'#4CD964'}]}>${totalSaved.toLocaleString('es-CL')}</Text>
           </View>
         </View>
 
-        {/* ACCESOS DIRECTOS */}
-        <View style={styles.actionsGrid}>
-          {/* Escanear */}
-          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Escanear' as never)}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="scan" size={26} color="#D4AF37" />
-            </View>
-            <Text style={styles.btnLabel}>Escanear</Text>
-          </TouchableOpacity>
-          
-          {/* Asistente */}
-          <TouchableOpacity style={[styles.actionBtn, styles.aiBtn]} onPress={() => navigation.navigate('Asistente' as never)}>
-            <View style={[styles.iconCircle, {borderColor: '#FFF'}]}>
-              <Ionicons name="chatbubble-ellipses" size={26} color="#FFF" />
-            </View>
-            <Text style={[styles.btnLabel, {color: '#FFF'}]}>Asistente</Text>
-          </TouchableOpacity>
+        {/* AGENDA DE AHORRO (INTERACTIVA) */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>📅 Toca un día para ahorrar</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:10}}>
+            {DAYS.map((day) => {
+              const offer = weeklyOffers[day] || {};
+              return (
+                <TouchableOpacity 
+                  key={day} 
+                  style={[styles.dayCard, {backgroundColor: offer.color || '#222'}]}
+                  onPress={() => setSelectedDay(day)}
+                >
+                  <Text style={styles.dayCardTitle}>{day}</Text>
+                  <Ionicons name={offer.icon || 'help'} size={24} color="#FFF" style={{marginVertical:5}} />
+                  <Text style={styles.dayCardBank} numberOfLines={1}>{offer.bank || '---'}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
 
-          {/* Historial */}
-          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('History' as never)}>
-            <View style={[styles.iconCircle, {borderColor: '#666'}]}>
-              <Ionicons name="list" size={26} color="#888" />
-            </View>
-            <Text style={[styles.btnLabel, {color: '#888'}]}>Historial</Text>
-          </TouchableOpacity>
+        {/* ACCESOS RÁPIDOS */}
+        <View style={styles.actionsRow}>
+           <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('Escanear' as never)}>
+             <Ionicons name="scan" size={24} color="#D4AF37" />
+             <Text style={styles.quickText}>Escanear</Text>
+           </TouchableOpacity>
+           <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('History' as never)}>
+             <Ionicons name="receipt" size={24} color="#D4AF37" />
+             <Text style={styles.quickText}>Ver Historial</Text>
+           </TouchableOpacity>
         </View>
 
       </ScrollView>
 
-      {/* MODAL MIS DATOS */}
-      <Modal visible={showMyData} transparent animationType="fade">
+      {/* MODAL EDUCATIVO DEL DESCUENTO */}
+      <Modal visible={!!selectedDay} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={{alignItems:'center', marginBottom:20}}>
-              <Ionicons name="wallet" size={40} color="#D4AF37" />
-              <Text style={styles.modalTitle}>Mis Datos</Text>
-            </View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>Titular:</Text><Text style={styles.dataValue}>{myBankData.name || '---'}</Text></View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>Banco:</Text><Text style={styles.dataValue}>{myBankData.bank || '---'}</Text></View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>Cuenta:</Text><Text style={styles.dataValue}>{myBankData.account || '---'}</Text></View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>RUT:</Text><Text style={styles.dataValue}>{myBankData.rut || '---'}</Text></View>
-            <View style={styles.dataRow}><Text style={styles.dataLabel}>Email:</Text><Text style={styles.dataValue}>{myBankData.email || '---'}</Text></View>
-            
-            <View style={{flexDirection:'row', gap:10, marginTop:20}}>
-              <TouchableOpacity style={[styles.closeModalBtn, {backgroundColor:'#333', flex:1}]} onPress={() => { setShowMyData(false); navigation.navigate('Settings' as never); }}>
-                <Text style={{fontWeight:'bold', color:'#FFF'}}>Editar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.closeModalBtn, {flex:1}]} onPress={() => setShowMyData(false)}>
-                <Text style={{fontWeight:'bold', color:'#000'}}>Cerrar</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalContent}>
+            {modalOffer && (
+              <>
+                <View style={[styles.modalHeader, {backgroundColor: modalOffer.color || '#333'}]}>
+                   <Text style={styles.modalDay}>{modalOffer.dayFull}</Text>
+                   <Ionicons name={modalOffer.icon} size={40} color="#FFF" />
+                </View>
 
+                <View style={{padding:25}}>
+                  <Text style={styles.modalBank}>{modalOffer.bank}</Text>
+                  <Text style={styles.modalBenefit}>{modalOffer.benefit}</Text>
+                  
+                  <View style={styles.educationBox}>
+                    <Text style={styles.educationTitle}>💡 ¿Cómo lo uso?</Text>
+                    <Text style={styles.educationText}>
+                      Paga usando tu tarjeta <Text style={{fontWeight:'bold'}}>{modalOffer.bank}</Text> (física o digital). 
+                      ¡Avísale al cajero que tienes el descuento!
+                    </Text>
+                  </View>
+
+                  <View style={styles.exampleBox}>
+                    <Text style={styles.exampleTitle}>💰 Ejemplo real:</Text>
+                    <Text style={styles.exampleText}>
+                      Si gastas <Text style={{color:'#FFF'}}>$20.000</Text>, te ahorras aprox <Text style={{color:'#4CD964', fontWeight:'bold'}}>$8.000</Text>.
+                    </Text>
+                    <Text style={styles.motivationText}>
+                      ¡Con ese ahorro ya pagas la mensualidad de la App y te sobra para una bebida! 🥤
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.useBtn} 
+                    onPress={() => handleUsedBenefit(8000)} // Simulamos 8000 de ahorro
+                  >
+                    <Text style={styles.useBtnText}>¡Lo usé! (Sumar $8.000)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={{marginTop:15, alignSelf:'center'}} onPress={() => setSelectedDay(null)}>
+                    <Text style={{color:'#666'}}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  scrollContent: { padding: 20, paddingBottom: 40, gap: 25 }, 
+  scrollContent: { padding: 20, paddingBottom: 40 }, 
   
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
-  aiQuote: { color: '#D4AF37', fontStyle: 'italic', marginTop: 4, maxWidth: 220, fontSize: 13 },
+  header: { marginBottom: 20 },
+  greeting: { color: '#FFF', fontSize: 28, fontWeight: 'bold' },
+  aiQuote: { color: '#666', fontStyle: 'italic', marginTop: 5 },
+
+  // EL "LUJO" (ASISTENTE)
+  luxuryHunter: { backgroundColor: '#1C1C1E', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#D4AF37', marginBottom: 25 },
+  hunterHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  hunterTitle: { color: '#D4AF37', fontWeight: 'bold', letterSpacing: 1, fontSize: 12 },
+  hunterQuestion: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+  searchBox: { flexDirection: 'row', gap: 10 },
+  searchInput: { flex: 1, backgroundColor: '#111', borderRadius: 12, color: '#FFF', paddingHorizontal: 15, height: 50, fontSize: 16, borderWidth:1, borderColor:'#333' },
+  searchBtn: { backgroundColor: '#D4AF37', width: 50, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  recResult: { marginTop: 15, padding: 10, backgroundColor: 'rgba(212, 175, 55, 0.1)', borderRadius: 10 },
+  recText: { color: '#D4AF37', fontSize: 15 },
+
+  // ESTADISTICAS
+  statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
+  statCard: { flex: 1, backgroundColor: '#1C1C1E', padding: 15, borderRadius: 15, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  statLabel: { color: '#666', fontSize: 10, fontWeight: 'bold', marginBottom: 5 },
+  statValue: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
+
+  // AGENDA
+  sectionContainer: { marginBottom: 25 },
+  sectionTitle: { color: '#888', fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase' },
+  dayCard: { width: 90, height: 110, borderRadius: 15, padding: 10, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
+  dayCardTitle: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  dayCardBank: { color: 'rgba(255,255,255,0.7)', fontSize: 10, textAlign: 'center' },
+
+  // BOTONES RAPIDOS
+  actionsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor:'#111', padding: 15, borderRadius: 20 },
+  quickBtn: { alignItems: 'center', gap: 5 },
+  quickText: { color: '#888', fontSize: 12 },
+
+  // MODAL EDUCATIVO
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#1C1C1E', borderTopLeftRadius: 25, borderTopRightRadius: 25, overflow: 'hidden' },
+  modalHeader: { padding: 20, alignItems: 'center', justifyContent: 'center' },
+  modalDay: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
+  modalBank: { color: '#D4AF37', fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 5 },
+  modalBenefit: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginBottom: 20 },
   
-  iconBtn: { width: 45, height: 45, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' },
+  educationBox: { backgroundColor: '#111', padding: 15, borderRadius: 10, marginBottom: 15 },
+  educationTitle: { color: '#FFF', fontWeight: 'bold', marginBottom: 5 },
+  educationText: { color: '#CCC', lineHeight: 20 },
 
-  sectionContainer: { gap: 10 },
-  sectionTitle: { color: '#888', fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
+  exampleBox: { backgroundColor: 'rgba(76, 217, 100, 0.1)', padding: 15, borderRadius: 10, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(76, 217, 100, 0.3)' },
+  exampleTitle: { color: '#4CD964', fontWeight: 'bold', marginBottom: 5 },
+  exampleText: { color: '#CCC', marginBottom: 10 },
+  motivationText: { color: '#FFF', fontStyle: 'italic', fontSize: 12 },
 
-  // Calendario
-  calendarRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#333', justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' },
-  dayText: { color: '#666', fontWeight: 'bold', fontSize: 12 },
-  benefitCard: { padding: 15, borderRadius: 20, height: 140, justifyContent: 'space-between' },
-  benefitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bankName: { color: '#FFF', fontWeight: 'bold', fontSize: 14, opacity: 0.9 },
-  benefitBig: { color: '#FFF', fontSize: 28, fontWeight: 'bold' },
-  benefitStore: { color: '#FFF', fontSize: 14, opacity: 0.8 },
-  cardChip: { width: 35, height: 22, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, position: 'absolute', bottom: 15, right: 15 },
-
-  // Cazador & Dinero
-  hunterRow: { flexDirection: 'row', gap: 10 },
-  searchInput: { flex: 1, backgroundColor: '#1C1C1E', borderRadius: 12, color: '#FFF', paddingHorizontal: 15, height: 45, fontSize: 14, borderWidth:1, borderColor:'#333' },
-  searchBtn: { backgroundColor: '#D4AF37', width: 45, height: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  recBubble: { backgroundColor: 'rgba(212, 175, 55, 0.15)', padding: 15, borderRadius: 15, borderLeftWidth: 3, borderColor: '#D4AF37' },
-  aiRecText: { color: '#D4AF37', fontSize: 14, fontWeight: 'bold' },
-
-  moneyCard: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  moneyLabel: { color: '#666', fontSize: 10, marginBottom: 5, fontWeight:'bold' },
-  moneyValue: { color: '#FFF', fontSize: 36, fontWeight: 'bold' },
-  progressBarBg: { width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3, marginTop: 15 },
-  progressBarFill: { height: '100%', backgroundColor: '#D4AF37', borderRadius: 3 },
-
-  // Acciones
-  actionsGrid: { flexDirection: 'row', gap: 10, marginTop: 5 },
-  actionBtn: { flex: 1, backgroundColor: '#111', paddingVertical: 15, borderRadius: 15, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
-  aiBtn: { backgroundColor: '#222', borderColor: '#444' },
-  iconCircle: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#D4AF37', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  btnLabel: { color: '#D4AF37', fontWeight: 'bold', fontSize: 12 },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
-  modalCard: { backgroundColor: '#1C1C1E', padding: 30, borderRadius: 25, width: '85%', borderWidth: 1, borderColor: '#333' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color:'#FFF', marginTop:10 },
-  dataRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, borderBottomWidth: 1, borderColor: '#333', paddingBottom: 5 },
-  dataLabel: { color: '#888' },
-  dataValue: { color: '#FFF', fontWeight: 'bold' },
-  closeModalBtn: { padding: 15, borderRadius: 15, alignItems: 'center', backgroundColor:'#D4AF37' },
+  useBtn: { backgroundColor: '#4CD964', padding: 18, borderRadius: 15, alignItems: 'center' },
+  useBtnText: { color: '#000', fontWeight: 'bold', fontSize: 16 }
 });

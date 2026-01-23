@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, 
-  SafeAreaView, TextInput, KeyboardAvoidingView, Platform, ScrollView, Vibration, Modal 
+  TextInput, KeyboardAvoidingView, Platform, ScrollView, Vibration, Modal 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -14,16 +15,21 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
   const [scannedData, setScannedData] = useState<any>(null);
-  const [showSuccess, setShowSuccess] = useState(false); // <--- Estado para la dopamina
+  const [showSuccess, setShowSuccess] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
-  if (!permission) return <View />;
+  if (!permission) return <View style={styles.container} />;
+  
   if (!permission.granted) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={{color:'white', marginBottom:20}}>Necesito permiso de cámara</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}><Text style={styles.btnTextBlack}>DAR PERMISO</Text></TouchableOpacity>
-      </View>
+      <SafeAreaView style={[styles.container, styles.center]}>
+        {/* CORRECCIÓN AQUÍ: Usamos 'videocam-off' en vez de 'camera-off' */}
+        <Ionicons name="videocam-off" size={50} color="#666" style={{marginBottom:20}} />
+        <Text style={{color:'white', marginBottom:20, fontSize:16}}>Necesito permiso para ver las boletas</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.btnGold}>
+          <Text style={styles.btnTextBlack}>DAR PERMISO</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     );
   }
 
@@ -36,56 +42,60 @@ export default function ScanScreen() {
         const result = await AIService.analyzeReceipt(photo.base64);
         if (result && result.total) {
           setScannedData({
-            store: result.store || "Comercio desconocido",
+            store: result.store || "Comercio",
             date: result.date || new Date().toLocaleDateString('es-CL'),
             total: result.total.toString(),
-            rawTotal: result.total
           });
         } else {
-          Alert.alert("Ups", "No pude leerlo. Intenta mejorar la luz.");
+          Alert.alert("Ups", "No pude leer el total. Intenta acercarte más. 🧐");
         }
       }
       setIsProcessing(false);
     } catch (error) {
       setIsProcessing(false);
+      Alert.alert("Error", "Algo falló al tomar la foto.");
     }
   };
 
   const handleSave = async () => {
     if (scannedData) {
-      const finalTotal = parseInt(scannedData.total.replace(/[^0-9]/g, ''));
-      if (isNaN(finalTotal) || finalTotal === 0) return;
+      const cleanTotal = scannedData.total.toString().replace(/[^0-9]/g, '');
+      const finalTotal = parseInt(cleanTotal);
+
+      if (isNaN(finalTotal) || finalTotal === 0) {
+        Alert.alert("Error", "El total no es válido.");
+        return;
+      }
 
       await DataService.saveReceipt({
+        id: Date.now().toString(),
         store: scannedData.store,
         total: finalTotal,
         date: scannedData.date,
-        items: []
       });
       
-      // --- AQUÍ EMPIEZA LA FIESTA DE LA DOPAMINA ---
-      Vibration.vibrate([0, 100, 50, 100]); // Vibración tipo "Ta-Da!"
-      setShowSuccess(true); // Mostramos pantalla de éxito
+      Vibration.vibrate([0, 50, 50, 50]); 
+      setShowSuccess(true); 
       
-      // Cerramos todo automático después de 2 segundos
       setTimeout(() => {
         setShowSuccess(false);
         setScannedData(null);
-        navigation.goBack();
-      }, 2000);
+        navigation.goBack(); 
+      }, 1800);
     }
   };
 
-  // --- VISTA DE CÁMARA ---
   return (
     <View style={styles.container}>
       
-      {/* MODAL DE ÉXITO (DOPAMINA PURA) */}
+      {/* MODAL DE ÉXITO */}
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.successOverlay}>
-          <Ionicons name="checkmark-circle" size={120} color="#4CD964" />
-          <Text style={styles.successTitle}>¡GUARDADO!</Text>
-          <Text style={styles.successSub}>Sumando puntos a tu control financiero 📈</Text>
+          <View style={styles.successCard}>
+            <Ionicons name="checkmark-circle" size={80} color="#4CD964" />
+            <Text style={styles.successTitle}>¡GUARDADO!</Text>
+            <Text style={styles.successSub}>Sumando puntos... 📈</Text>
+          </View>
         </View>
       </Modal>
 
@@ -93,8 +103,11 @@ export default function ScanScreen() {
         <CameraView style={styles.camera} facing="back" ref={cameraRef}>
           <SafeAreaView style={styles.overlay}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-              <Ionicons name="close" size={30} color="white" />
+              <Ionicons name="close" size={28} color="white" />
             </TouchableOpacity>
+            
+            <View style={styles.focusFrame} />
+
             <View style={styles.bottomBar}>
               {isProcessing ? (
                 <View style={styles.loadingBox}>
@@ -110,25 +123,44 @@ export default function ScanScreen() {
           </SafeAreaView>
         </CameraView>
       ) : (
-        // VISTA DE EDICIÓN
         <SafeAreaView style={styles.container}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
             <ScrollView contentContainerStyle={styles.resultContainer}>
-              <Ionicons name="scan-circle" size={60} color="#D4AF37" style={{marginBottom:10}} />
               <Text style={styles.titleResult}>Confirma el Gasto</Text>
               
               <View style={styles.ticket}>
-                <Text style={styles.label}>Comercio:</Text>
-                <TextInput style={styles.input} value={scannedData.store} onChangeText={(t) => setScannedData({...scannedData, store: t})} />
+                <View style={{alignItems:'center', marginBottom:20}}>
+                  <Ionicons name="receipt" size={40} color="#D4AF37" />
+                </View>
+
+                <Text style={styles.label}>COMERCIO</Text>
+                <TextInput 
+                  style={styles.input} 
+                  value={scannedData.store} 
+                  onChangeText={(t) => setScannedData({...scannedData, store: t})} 
+                />
+                
                 <View style={styles.divider} />
-                <Text style={styles.label}>Total ($):</Text>
-                <TextInput style={[styles.input, styles.totalInput]} value={scannedData.total} onChangeText={(t) => setScannedData({...scannedData, total: t})} keyboardType="numeric" />
+                
+                <Text style={styles.label}>TOTAL ($)</Text>
+                <TextInput 
+                  style={[styles.input, styles.totalInput]} 
+                  value={scannedData.total} 
+                  onChangeText={(t) => setScannedData({...scannedData, total: t})} 
+                  keyboardType="numeric" 
+                />
               </View>
 
-              <TouchableOpacity style={styles.btnGold} onPress={handleSave}>
-                <Text style={styles.btnTextBlack}>¡CONFIRMAR! 🚀</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setScannedData(null)} style={{marginTop:20}}><Text style={{color:'#666'}}>Cancelar</Text></TouchableOpacity>
+              <View style={{flexDirection:'row', gap:15, width:'100%'}}>
+                <TouchableOpacity onPress={() => setScannedData(null)} style={styles.btnCancel}>
+                  <Text style={{color:'#FFF', fontWeight:'bold'}}>Reintentar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.btnGold} onPress={handleSave}>
+                  <Text style={styles.btnTextBlack}>CONFIRMAR ✅</Text>
+                </TouchableOpacity>
+              </View>
+
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -139,27 +171,27 @@ export default function ScanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  center: { justifyContent: 'center', alignItems: 'center', flex:1 },
+  center: { justifyContent: 'center', alignItems: 'center' },
   camera: { flex: 1 },
   overlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
-  closeBtn: { alignSelf: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 20 },
-  bottomBar: { alignItems: 'center', marginBottom: 40 },
-  shutterBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
-  loadingBox: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 25, flexDirection: 'row', alignItems: 'center' },
-  
-  resultContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  titleResult: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  ticket: { backgroundColor: '#1C1C1E', padding: 20, borderRadius: 15, width: '100%', borderWidth: 1, borderColor: '#333', marginBottom: 30 },
-  label: { color: '#888', fontSize: 12, marginBottom: 5 },
-  input: { color: '#FFF', fontSize: 18, borderBottomWidth: 1, borderColor: '#333', paddingVertical: 10 },
-  totalInput: { color: '#D4AF37', fontSize: 28, fontWeight: 'bold' },
-  divider: { height: 20 },
-  btnGold: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 30, width: '100%', alignItems: 'center', shadowColor: "#D4AF37", shadowOpacity: 0.5, shadowRadius: 10, elevation: 5 },
-  btnTextBlack: { fontWeight: 'bold', fontSize: 18 },
-
-  // ESTILOS DE ÉXITO
-  successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
-  successTitle: { color: '#4CD964', fontSize: 32, fontWeight: 'bold', marginTop: 20 },
-  successSub: { color: '#FFF', marginTop: 10, fontSize: 16 }
+  closeBtn: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, borderRadius: 20 },
+  focusFrame: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', marginVertical: 40, borderRadius: 20, borderStyle: 'dashed' },
+  bottomBar: { alignItems: 'center', marginBottom: 20 },
+  shutterBtn: { width: 70, height: 70, borderRadius: 35, borderWidth: 5, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  shutterInner: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#FFF' },
+  loadingBox: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 30, flexDirection: 'row', alignItems: 'center' },
+  resultContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
+  titleResult: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 30 },
+  ticket: { backgroundColor: '#1C1C1E', padding: 30, borderRadius: 20, width: '100%', borderWidth: 1, borderColor: '#333', marginBottom: 30 },
+  label: { color: '#666', fontSize: 10, marginBottom: 5, fontWeight:'bold', letterSpacing:1 },
+  input: { color: '#FFF', fontSize: 18, borderBottomWidth: 1, borderColor: '#333', paddingVertical: 10, marginBottom: 20 },
+  totalInput: { color: '#D4AF37', fontSize: 32, fontWeight: 'bold', textAlign:'center', borderBottomWidth:0 },
+  divider: { height: 1, backgroundColor: '#333', marginVertical: 10 },
+  btnGold: { flex: 1, backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
+  btnCancel: { flex: 1, backgroundColor: '#333', padding: 18, borderRadius: 15, alignItems: 'center' },
+  btnTextBlack: { fontWeight: 'bold', fontSize: 16 },
+  successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  successCard: { backgroundColor: '#1C1C1E', padding: 40, borderRadius: 30, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  successTitle: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginTop: 20 },
+  successSub: { color: '#888', marginTop: 10 }
 });

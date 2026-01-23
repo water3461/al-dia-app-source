@@ -1,94 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { DataService, BankCard } from '../services/DataService';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function OnboardingScreen({ navigation }: any) {
-  const [banks, setBanks] = useState<BankCard[]>([]);
-  const [selectedBanks, setSelectedBanks] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function OnboardingScreen() {
+  const navigation = useNavigation();
 
-  useEffect(() => {
-    loadBanks();
-  }, []);
-
-  const loadBanks = async () => {
-    const data = await DataService.getBanks();
-    setBanks(data);
-    setLoading(false);
-  };
-
-  const toggleBank = (id: string) => {
-    if (selectedBanks.includes(id)) {
-      setSelectedBanks(selectedBanks.filter(item => item !== id));
-    } else {
-      setSelectedBanks([...selectedBanks, id]);
-    }
-  };
-
-  const handleContinue = async () => {
-    const allIds = banks.map(b => b.id);
-    const hiddenIds = allIds.filter(id => !selectedBanks.includes(id));
-    
-    // 1. Guardamos la preferencia
-    await DataService.saveHiddenBanks(hiddenIds);
-    
-    // 2. Marcamos completado
-    await DataService.completeOnboarding();
-    
-    // 3. 👇 CORRECCIÓN CLAVE: Navegamos a 'Main' (coincide con App.tsx)
-    navigation.replace('Main');
+  const handleStart = () => {
+    // CAMBIO CLAVE: Vamos a la configuración de billetera primero
+    navigation.navigate('WalletSetup' as never);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.emoji}>👋</Text>
-        <Text style={styles.title}>Bienvenido a AL DÍA</Text>
-        <Text style={styles.subtitle}>Selecciona los bancos o tarjetas que tienes:</Text>
-      </View>
+      <View style={styles.content}>
+        
+        <View style={styles.iconContainer}>
+          <Ionicons name="wallet" size={80} color="#D4AF37" />
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#D4AF37" style={{ marginTop: 50 }} />
-      ) : (
-        <ScrollView style={styles.list}>
-          {banks.map((bank) => {
-            const isSelected = selectedBanks.includes(bank.id);
-            return (
-              <TouchableOpacity 
-                key={bank.id} 
-                style={[
-                  styles.option, 
-                  isSelected && styles.optionSelected, 
-                  { borderColor: isSelected ? '#D4AF37' : '#333' }
-                ]}
-                onPress={() => toggleBank(bank.id)}
-              >
-                <View style={[styles.dot, { backgroundColor: bank.primary_color }]} />
-                
-                <Text style={[styles.bankName, isSelected && { color: '#D4AF37', fontWeight: 'bold' }]}>
-                  {bank.name}
-                </Text>
-                
-                <View style={[styles.checkbox, isSelected && { borderColor: '#D4AF37' }]}>
-                  {isSelected && <Text style={styles.check}>✓</Text>}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          <View style={{height: 100}} /> 
-        </ScrollView>
-      )}
+        <Text style={styles.title}>AL DÍA</Text>
+        <Text style={styles.subtitle}>Tus finanzas, a lo chileno. 🇨🇱</Text>
 
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.button, selectedBanks.length === 0 && styles.buttonDisabled]} 
-          onPress={handleContinue}
-          disabled={selectedBanks.length === 0}
-        >
-          <Text style={styles.buttonText}>
-            {selectedBanks.length === 0 ? 'Selecciona al menos uno' : 'COMENZAR A AHORRAR 🚀'}
-          </Text>
+        <View style={styles.features}>
+          <View style={styles.row}>
+            <Ionicons name="checkmark-circle" size={20} color="#D4AF37"/>
+            <Text style={styles.featText}>Ordena tus tarjetas fácil</Text>
+          </View>
+          <View style={styles.row}>
+            <Ionicons name="checkmark-circle" size={20} color="#D4AF37"/>
+            <Text style={styles.featText}>IA que te dice con cuál pagar</Text>
+          </View>
+          <View style={styles.row}>
+            <Ionicons name="checkmark-circle" size={20} color="#D4AF37"/>
+            <Text style={styles.featText}>Escanea boletas al toque</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.btn} onPress={handleStart}>
+          <Text style={styles.btnText}>COMENZAR</Text>
+          <Ionicons name="arrow-forward" size={20} color="#000" />
         </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
@@ -96,30 +50,15 @@ export default function OnboardingScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 30, alignItems: 'center' },
-  emoji: { fontSize: 50, marginBottom: 10 },
-  title: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-  subtitle: { color: '#888', textAlign: 'center', fontSize: 16, lineHeight: 22 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
+  iconContainer: { marginBottom: 30, shadowColor: '#D4AF37', shadowOpacity: 0.5, shadowRadius: 20 },
+  title: { fontSize: 40, fontWeight: 'bold', color: '#FFF', letterSpacing: 5, marginBottom: 10 },
+  subtitle: { fontSize: 18, color: '#888', marginBottom: 50 },
   
-  list: { paddingHorizontal: 20 },
-  option: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, marginBottom: 10, borderRadius: 12, borderWidth: 1 },
-  optionSelected: { backgroundColor: 'rgba(212, 175, 55, 0.1)' },
-  
-  dot: { 
-    width: 12, 
-    height: 12, 
-    borderRadius: 6, 
-    marginRight: 15,
-    borderWidth: 1,
-    borderColor: '#888'
-  },
+  features: { alignSelf: 'flex-start', marginBottom: 60, marginLeft: 20 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
+  featText: { color: '#CCC', fontSize: 16 },
 
-  bankName: { color: '#FFF', fontSize: 16, flex: 1 },
-  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#666', justifyContent: 'center', alignItems: 'center' },
-  check: { color: '#D4AF37', fontWeight: 'bold', fontSize: 14 },
-  
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#222', backgroundColor: '#000' },
-  button: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
-  buttonDisabled: { backgroundColor: '#333' },
-  buttonText: { color: '#000', fontWeight: 'bold', fontSize: 16, letterSpacing: 1 }
+  btn: { backgroundColor: '#D4AF37', width: '100%', padding: 20, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+  btnText: { color: '#000', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }
 });

@@ -1,5 +1,5 @@
 // 🔴 1. ¡¡PEGA TU API KEY AQUÍ O NO FUNCIONARÁ!!
-const API_KEY = "AIzaSyDdK63kTWCbgC2XiuNHChZN5OSLnLlDKEA"; 
+const API_KEY = "AIzaSyAolZWUAuqUYGDwYsqh_F-a0mEpNa6I0yo"; 
 
 export const AIService = {
 
