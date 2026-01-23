@@ -3,47 +3,21 @@ const API_KEY = "AIzaSyDdK63kTWCbgC2XiuNHChZN5OSLnLlDKEA";
 
 export const AIService = {
 
-  // FUNCIÓN CLAVE: Busca qué modelo tienes activo y devuelve su nombre
   findActiveModel: async () => {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
       const data = await response.json();
-      
-      if (data.error) {
-        console.error("Error buscando modelos:", data.error.message);
-        return null;
-      }
-
-      // Buscamos cualquier modelo que sirva para generar texto (generateContent)
-      // Preferimos los que dicen "flash" o "pro" si hay varios.
       const models = data.models || [];
-      const bestModel = models.find((m: any) => m.name.includes('flash') && m.supportedGenerationMethods.includes('generateContent')) 
-                     || models.find((m: any) => m.name.includes('pro') && m.supportedGenerationMethods.includes('generateContent'))
-                     || models.find((m: any) => m.supportedGenerationMethods.includes('generateContent'));
-
-      if (bestModel) {
-        // La API devuelve "models/gemini-pro", nosotros necesitamos solo "gemini-pro"
-        const cleanName = bestModel.name.replace('models/', '');
-        console.log(`✅ Modelo encontrado y seleccionado: ${cleanName}`);
-        return cleanName;
-      }
-      
-      return "gemini-pro"; // Fallback por si acaso
-
-    } catch (e) {
-      return "gemini-pro";
-    }
+      const best = models.find((m: any) => m.name.includes('flash')) || models.find((m: any) => m.name.includes('pro'));
+      return best ? best.name.replace('models/', '') : "gemini-pro";
+    } catch (e) { return "gemini-pro"; }
   },
 
-  // 1. ANALIZAR BOLETA (Escáner)
   analyzeReceipt: async (base64Image: string) => {
     try {
       if (API_KEY.includes("TU_API_KEY")) return null;
-
-      // PASO 1: Preguntamos qué modelo usar
       const modelName = await AIService.findActiveModel();
-      if (!modelName) return null;
-
+      
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,48 +33,52 @@ export const AIService = {
 
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) return null;
-      
-      return JSON.parse(text.replace(/```json|```/g, '').trim());
-
-    } catch (error) {
-      console.error("Error IA:", error);
-      return null;
-    }
+      return text ? JSON.parse(text.replace(/```json|```/g, '').trim()) : null;
+    } catch (error) { return null; }
   },
 
-  // 2. CHAT ASISTENTE (Chat)
-  chatWithAI: async (userMessage: string, context: string) => {
+  // 👇 AQUÍ ESTÁ LA MAGIA DE LA MEMORIA
+  chatWithAI: async (currentMessage: string, history: any[], context: string) => {
     try {
       if (API_KEY.includes("TU_API_KEY")) return "⚠️ Falta API Key.";
-
-      // PASO 1: Preguntamos qué modelo usar
       const modelName = await AIService.findActiveModel();
 
-      const prompt = `
-        ACTÚA COMO: Asesor financiero chileno EJECUTIVO.
-        FORMATO: Sin saludos. Títulos MAYÚSCULAS. Emojis (💰). Máx 40 palabras.
-        CONTEXTO: ${context}
-        PREGUNTA: "${userMessage}"
+      // 1. DEFINIMOS LA PERSONALIDAD (SYSTEM PROMPT)
+      const systemInstruction = `
+        ERES: 'Al Día', un partner financiero chileno.
+        CONTEXTO ACTUAL DEL USUARIO (Datos Reales): ${context}
+        
+        REGLAS:
+        - Recuerda lo que hemos hablado antes en este chat.
+        - Usa modismos chilenos naturales (cachái, al tiro, lucas).
+        - Si el usuario pregunta por un dato anterior, búscalo en el historial.
+        - Opina sobre los gastos con emojis y carácter.
       `;
+
+      // 2. CONSTRUIMOS EL HILO DE LA CONVERSACIÓN (MEMORIA)
+      // Google necesita que le enviemos: [Usuario, Modelo, Usuario, Modelo...]
+      const chatHistory = history.map((msg) => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      }));
+
+      // 3. EMPAQUETAMOS TODO
+      // Primero va la instrucción del sistema + el historial previo + el mensaje nuevo
+      const finalContents = [
+        { role: 'user', parts: [{ text: systemInstruction }] }, // Inyección de contexto como primer mensaje
+        ...chatHistory, // Memoria de lo que ya hablaron
+        { role: 'user', parts: [{ text: currentMessage }] } // Lo que pregunta ahora
+      ];
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
+        body: JSON.stringify({ contents: finalContents })
       });
 
       const data = await response.json();
-      
-      // Si sigue fallando, devolvemos el error exacto para leerlo
-      if (data.error) return `Error Google (${modelName}): ${data.error.message}`;
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Me perdí en la conversación. ¿Qué decías?";
 
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta.";
-
-    } catch (error: any) {
-      return "Error de conexión.";
-    }
+    } catch (error) { return "Error de conexión."; }
   }
 };
