@@ -1,18 +1,48 @@
-// 🔴 1. PEGA TU API KEY AQUÍ
+// 🔴 1. PEGA TU API KEY AQUÍ (¡No la olvides!)
 const API_KEY = "AIzaSyDdK63kTWCbgC2XiuNHChZN5OSLnLlDKEA"; 
+
+// --- FRASES DE RESPALDO (Por si se corta el internet o la IA falla) ---
+const FRASES_CHILENAS = {
+  BAJO: [ // Gasto bajo (Ahorrador)
+    "Estás más apretado que traje de torero. ¡Bien! 🐂",
+    "El Tío Rico estaría orgulloso de ti. 🦆",
+    "Tu billetera está respirando tranquila hoy. 🧘‍♂️",
+    "Sigue así y nos compramos el sur. 🌲",
+    "Modo monje tibetano activado. 🏯",
+    "Cuidando las lucas como hueso santo. 🦴"
+  ],
+  MEDIO: [ // Gasto medio (Ojo)
+    "Vas bien, pero no te confíes... te estoy mirando. 👀",
+    "Ni mucho ni poco. Mantén el equilibrio, saltamontes. 🦗",
+    "Ojo con el fin de semana, que ahí se va todo. 🍻",
+    "No te calientes con compras innecesarias. 🧊",
+    "El bolsillo aguanta, pero no abuses. 🤨"
+  ],
+  ALTO: [ // Gasto alto (Peligro)
+    "¡Corta la tarjeta! Te crees Farkas y no eres. 🛑",
+    "Alerta Roja: Vamos a comer arroz todo el mes. 🍚",
+    "Tu cuenta bancaria está llorando sangre. 🩸",
+    "¡Para la mano! Se nos va el sueldo. 💸",
+    "Llama a los bomberos, tu tarjeta está en llamas. 🔥",
+    "¿Te ganaste el Loto y no me contaste? Bájale al gasto. 📉"
+  ]
+};
 
 export const AIService = {
 
+  // 🧠 CEREBRO: Busca el mejor modelo disponible en tu cuenta
   findActiveModel: async () => {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
       const data = await response.json();
       const models = data.models || [];
+      // Priorizamos modelos rápidos
       const best = models.find((m: any) => m.name.includes('flash')) || models.find((m: any) => m.name.includes('pro'));
       return best ? best.name.replace('models/', '') : "gemini-pro";
     } catch (e) { return "gemini-pro"; }
   },
 
+  // 📸 VISIÓN: Analiza la boleta (OCR)
   analyzeReceipt: async (base64Image: string) => {
     try {
       if (API_KEY.includes("TU_API_KEY")) return null;
@@ -24,7 +54,7 @@ export const AIService = {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "OCR ESTRICTO JSON: {\"store\": \"string\", \"date\": \"string\", \"total\": number}. Si falla: null." },
+              { text: "OCR ESTRICTO. SOLO JSON: {\"store\": \"Nombre Tienda\", \"date\": \"dd/mm/yyyy\", \"total\": numero_entero}. Si falla: null." },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } }
             ]
           }]
@@ -37,37 +67,31 @@ export const AIService = {
     } catch (error) { return null; }
   },
 
-  // 👇 AQUÍ ESTÁ LA MAGIA DE LA MEMORIA
+  // 💬 CHAT: Asistente con Memoria
   chatWithAI: async (currentMessage: string, history: any[], context: string) => {
     try {
       if (API_KEY.includes("TU_API_KEY")) return "⚠️ Falta API Key.";
       const modelName = await AIService.findActiveModel();
 
-      // 1. DEFINIMOS LA PERSONALIDAD (SYSTEM PROMPT)
       const systemInstruction = `
-        ERES: 'Al Día', un partner financiero chileno.
-        CONTEXTO ACTUAL DEL USUARIO (Datos Reales): ${context}
-        
+        ERES: 'Al Día', un partner financiero chileno con carácter.
+        CONTEXTO: ${context}
         REGLAS:
-        - Recuerda lo que hemos hablado antes en este chat.
-        - Usa modismos chilenos naturales (cachái, al tiro, lucas).
-        - Si el usuario pregunta por un dato anterior, búscalo en el historial.
-        - Opina sobre los gastos con emojis y carácter.
+        - Recuerda el historial.
+        - Usa modismos (cachái, lucas, al tiro).
+        - Sé breve y directo.
+        - Usa EMOJIS para enfatizar.
       `;
 
-      // 2. CONSTRUIMOS EL HILO DE LA CONVERSACIÓN (MEMORIA)
-      // Google necesita que le enviemos: [Usuario, Modelo, Usuario, Modelo...]
       const chatHistory = history.map((msg) => ({
         role: msg.sender === 'user' ? 'user' : 'model',
         parts: [{ text: msg.text }]
       }));
 
-      // 3. EMPAQUETAMOS TODO
-      // Primero va la instrucción del sistema + el historial previo + el mensaje nuevo
       const finalContents = [
-        { role: 'user', parts: [{ text: systemInstruction }] }, // Inyección de contexto como primer mensaje
-        ...chatHistory, // Memoria de lo que ya hablaron
-        { role: 'user', parts: [{ text: currentMessage }] } // Lo que pregunta ahora
+        { role: 'user', parts: [{ text: systemInstruction }] },
+        ...chatHistory,
+        { role: 'user', parts: [{ text: currentMessage }] }
       ];
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
@@ -77,8 +101,58 @@ export const AIService = {
       });
 
       const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Me perdí en la conversación. ¿Qué decías?";
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Me quedé en blanco. ¿Repites?";
 
-    } catch (error) { return "Error de conexión."; }
+    } catch (error) { return "Sin conexión. Revisa tu internet."; }
+  },
+
+  // 🌶️ EL JUEZ: Frase del Día (Con respaldo local)
+  generateDailyQuote: async (totalSpent: number) => {
+    // Definimos el estado actual para usarlo en el fallback si falla la IA
+    const meta = 500000;
+    const porcentaje = totalSpent / meta;
+    let estado: 'BAJO' | 'MEDIO' | 'ALTO' = 'MEDIO';
+    if (porcentaje < 0.3) estado = 'BAJO';
+    else if (porcentaje > 0.8) estado = 'ALTO';
+
+    try {
+      if (API_KEY.includes("TU_API_KEY")) throw new Error("No Key");
+      
+      const modelName = await AIService.findActiveModel();
+      const prompt = `
+        ACTÚA COMO: Un comediante chileno ácido que juzga mis finanzas.
+        SITUACIÓN: He gastado $${totalSpent} (Meta: $${meta}). Llevo el ${(porcentaje*100).toFixed(0)}%.
+        
+        INSTRUCCIÓN:
+        - Si es poco (<30%): Felicítame irónicamente o motívame.
+        - Si es medio (30-80%): Haz una advertencia graciosa.
+        - Si es mucho (>80%): Rétame, sé dramático o exagerado (estilo "vamos a quebrar").
+        
+        FORMATO:
+        - Máximo 12 palabras.
+        - 1 Emoji obligatorio.
+        - Usa jerga chilena (fome, bacán, pato, lucas).
+        - ¡SÉ ORIGINAL, NO REPITAS FRASES TÍPICAS!
+      `;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (text) return text.replace(/"/g, ''); // Quitamos comillas si las trae
+      throw new Error("Respuesta vacía");
+
+    } catch (error) {
+      // 🛡️ FALLBACK: Si la IA falla, usamos una frase aleatoria de la lista local
+      console.log("Usando frase de respaldo local...");
+      const lista = FRASES_CHILENAS[estado];
+      const azar = Math.floor(Math.random() * lista.length);
+      return lista[azar];
+    }
   }
 };
