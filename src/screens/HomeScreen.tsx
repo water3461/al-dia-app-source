@@ -1,177 +1,103 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator 
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { DataService, Rule, BankCard } from '../services/DataService';
+import { DataService } from '../services/DataService';
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
-  // Estado para la fecha seleccionada (Objeto Date completo)
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [dailyBenefits, setDailyBenefits] = useState<Rule[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [myBanks, setMyBanks] = useState<BankCard[]>([]);
+  const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+  const [totalSpent, setTotalSpent] = useState(0);
+  const [receiptCount, setReceiptCount] = useState(0);
+  
+  // META FICTICIA (Para el juego)
+  const MONTHLY_BUDGET = 500000; 
 
-  // 1. Cargar datos iniciales
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
-  // 2. Cada vez que cambie la fecha seleccionada, filtramos los beneficios
-  useEffect(() => {
-    filterBenefitsByDate(selectedDate);
-  }, [selectedDate, myBanks]);
-
-  const loadUserData = async () => {
-    // Obtenemos todos los bancos (mocks)
-    const allBanks = await DataService.getBanks();
-    // Obtenemos los ocultos
-    const hiddenIds = await DataService.getHiddenBanks();
-    // Filtramos solo MIS bancos
-    const visibleBanks = allBanks.filter(b => !hiddenIds.includes(b.id));
-    setMyBanks(visibleBanks);
+  const loadData = async () => {
+    const history = await DataService.getHistory();
+    const total = history.reduce((acc, item) => acc + item.total, 0);
+    setTotalSpent(total);
+    setReceiptCount(history.length);
+    setRefreshing(false);
   };
 
-  const filterBenefitsByDate = (date: Date) => {
-    setLoading(true);
-    // Convertimos la fecha a día de la semana (ej: "Lunes")
-    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const dayName = days[date.getDay()]; // ej: "Miércoles"
+  useEffect(() => { loadData(); }, []);
 
-    let rulesForDay: Rule[] = [];
-
-    // Buscamos en MIS bancos las reglas que coincidan con este día
-    myBanks.forEach(bank => {
-      const bankRules = bank.rules.filter(rule => 
-        rule.day === dayName || rule.day === 'Todos' || (rule.days && rule.days.includes(dayName))
-      );
-      rulesForDay = [...rulesForDay, ...bankRules];
-    });
-
-    setDailyBenefits(rulesForDay);
-    setLoading(false);
-  };
-
-  // Generamos la semana actual para el calendario visual
-  const generateWeek = () => {
-    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const today = new Date();
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - today.getDay() + i); // Ajustar al Domingo como inicio
-      return { 
-        label: days[d.getDay()], 
-        dayNumber: d.getDate(), 
-        fullDate: d 
-      };
-    });
-  };
-  const weekDates = generateWeek();
-
-  // Acción al tocar un beneficio (Feedback útil)
-  const handleBenefitPress = (rule: Rule) => {
-    Alert.alert(
-      `${rule.store}`,
-      `💳 Usa tu tarjeta: ${rule.bank} (${rule.cardType})\n\n✅ Descuento: ${rule.discount}\n📅 Válido: ${rule.day}`,
-      [{ text: "Entendido", style: "default" }]
-    );
-  };
+  // Cálculo de la barra de progreso
+  const progress = Math.min(totalSpent / MONTHLY_BUDGET, 1);
+  const progressColor = progress > 0.8 ? '#FF3B30' : (progress > 0.5 ? '#FFCC00' : '#4CD964');
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        
-        {/* HEADER */}
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#D4AF37"/>}
+      >
+        {/* HEADER TIPO JUEGO */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hola,</Text>
-            <Text style={styles.username}>Organiza tu día ☀️</Text>
+            <Text style={styles.greeting}>Hola, Capitán 👋</Text>
+            <Text style={styles.subtitle}>Estado de tus finanzas</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <Ionicons name="person-circle" size={45} color="#D4AF37" />
+          <View style={styles.badge}>
+            <Ionicons name="shield-checkmark" size={16} color="#000" />
+            <Text style={styles.badgeText}>NIVEL 1</Text>
+          </View>
+        </View>
+
+        {/* TARJETA PRINCIPAL (HUD) */}
+        <View style={styles.mainCard}>
+          <Text style={styles.cardTitle}>GASTO MENSUAL</Text>
+          <Text style={styles.bigMoney}>${totalSpent.toLocaleString('es-CL')}</Text>
+          
+          <View style={styles.barContainer}>
+            <View style={[styles.barFill, { width: `${progress * 100}%`, backgroundColor: progressColor }]} />
+          </View>
+          
+          <View style={styles.rowBetween}>
+            <Text style={styles.limitText}>Meta: ${MONTHLY_BUDGET.toLocaleString('es-CL')}</Text>
+            <Text style={{color: progressColor, fontWeight:'bold'}}>
+              {(progress * 100).toFixed(0)}% Usado
+            </Text>
+          </View>
+        </View>
+
+        {/* ESTADÍSTICAS RÁPIDAS */}
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Ionicons name="receipt" size={24} color="#D4AF37" />
+            <Text style={styles.statNumber}>{receiptCount}</Text>
+            <Text style={styles.statLabel}>Boletas</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Ionicons name="trending-up" size={24} color="#4CD964" />
+            <Text style={styles.statNumber}>Top</Text>
+            <Text style={styles.statLabel}>Control</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Ionicons name="flame" size={24} color="#FF9500" />
+            <Text style={styles.statNumber}>3</Text>
+            <Text style={styles.statLabel}>Días Racha</Text>
+          </View>
+        </View>
+
+        {/* ACCIONES RÁPIDAS */}
+        <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
+        <View style={styles.actionGrid}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Escanear' as never)}>
+            <View style={[styles.iconCircle, {backgroundColor: 'rgba(212, 175, 55, 0.2)'}]}>
+              <Ionicons name="scan" size={24} color="#D4AF37" />
+            </View>
+            <Text style={styles.actionText}>Escanear</Text>
           </TouchableOpacity>
-        </View>
 
-        {/* CALENDARIO INTERACTIVO */}
-        <View style={styles.calendarContainer}>
-          <Text style={styles.sectionTitle}>Tu Semana</Text>
-          <View style={styles.calendarRow}>
-            {weekDates.map((item, index) => {
-              // Comparamos si es el mismo día
-              const isSelected = item.fullDate.getDate() === selectedDate.getDate();
-              const isToday = item.fullDate.getDate() === new Date().getDate();
-              
-              return (
-                <TouchableOpacity 
-                  key={index} 
-                  style={[
-                    styles.dayItem, 
-                    isSelected && styles.dayItemSelected,
-                    !isSelected && isToday && styles.dayItemToday // Estilo para "Hoy" si no está seleccionado
-                  ]}
-                  onPress={() => setSelectedDate(item.fullDate)}
-                >
-                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{item.label}</Text>
-                  <Text style={[styles.dateText, isSelected && styles.dateTextSelected]}>{item.dayNumber}</Text>
-                  {isSelected && <View style={styles.dot} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* LISTA DE BENEFICIOS DINÁMICA */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {selectedDate.getDate() === new Date().getDate() ? 'Ahorra Hoy ⚡' : `Ahorra el ${selectedDate.toLocaleDateString('es-CL', {weekday: 'long'})} 🗓️`}
-          </Text>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color="#D4AF37" style={{marginTop: 20}} />
-        ) : dailyBenefits.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benefitsScroll}>
-            {dailyBenefits.map((rule, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.benefitCard}
-                onPress={() => handleBenefitPress(rule)}
-              >
-                <View style={styles.cardHeader}>
-                  {/* Icono genérico según tienda */}
-                  <Ionicons name={rule.store.includes('Starbucks') ? 'cafe' : rule.store.includes('Copec') ? 'car' : 'pricetag'} size={20} color="#D4AF37" />
-                  <Text style={styles.benefitBrand} numberOfLines={1}>{rule.store}</Text>
-                </View>
-                
-                <View>
-                  <Text style={styles.benefitOffer}>{rule.discount}</Text>
-                  <Text style={styles.benefitDesc}>con {rule.bank}</Text>
-                  <View style={styles.tagContainer}>
-                     <Text style={styles.cardTypeTag}>{rule.cardType}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No hay beneficios registrados para este día en tus bancos seleccionados.</Text>
-          </View>
-        )}
-
-        {/* ACCESO RÁPIDO A ESCÁNER */}
-        <View style={styles.actionContainer}>
-            <Text style={styles.sectionTitle}>Gastos</Text>
-            <TouchableOpacity 
-                style={styles.bigScanButton}
-                onPress={() => navigation.navigate('Escanear')}
-            >
-                <Ionicons name="scan" size={30} color="#000" />
-                <Text style={styles.bigScanText}>Escanear Boleta</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('History' as never)}>
+            <View style={[styles.iconCircle, {backgroundColor: 'rgba(255, 255, 255, 0.1)'}]}>
+              <Ionicons name="list" size={24} color="#FFF" />
+            </View>
+            <Text style={styles.actionText}>Historial</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
@@ -180,44 +106,29 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting: { color: '#888', fontSize: 14 },
-  username: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#000', paddingHorizontal: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 30 },
+  greeting: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
+  subtitle: { color: '#888', fontSize: 14 },
+  badge: { flexDirection: 'row', backgroundColor: '#D4AF37', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, alignItems: 'center', gap: 5 },
+  badgeText: { fontWeight: 'bold', fontSize: 12 },
   
-  calendarContainer: { paddingHorizontal: 20, marginBottom: 25 },
-  calendarRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
-  dayItem: { alignItems: 'center', padding: 8, borderRadius: 12, width: 45, backgroundColor: '#111' },
-  dayItemToday: { borderColor: '#333', borderWidth: 1 },
-  dayItemSelected: { backgroundColor: '#D4AF37' },
-  dayText: { color: '#666', fontSize: 12, marginBottom: 4 },
-  dayTextSelected: { color: '#000', fontWeight: 'bold' },
-  dateText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  dateTextSelected: { color: '#000' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#000', marginTop: 4 },
+  mainCard: { backgroundColor: '#1C1C1E', padding: 25, borderRadius: 25, borderWidth: 1, borderColor: '#333', marginBottom: 25 },
+  cardTitle: { color: '#888', fontSize: 12, letterSpacing: 1, marginBottom: 5 },
+  bigMoney: { color: '#FFF', fontSize: 42, fontWeight: 'bold', marginBottom: 20 },
+  barContainer: { height: 10, backgroundColor: '#333', borderRadius: 5, marginBottom: 10, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 5 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between' },
+  limitText: { color: '#666', fontSize: 12 },
 
-  sectionHeader: { paddingHorizontal: 20, marginBottom: 15 },
-  sectionTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
+  statBox: { backgroundColor: '#111', width: '30%', padding: 15, borderRadius: 15, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
+  statNumber: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginVertical: 5 },
+  statLabel: { color: '#666', fontSize: 12 },
 
-  benefitsScroll: { paddingLeft: 20, marginBottom: 30 },
-  benefitCard: { 
-    width: 160, padding: 15, borderRadius: 16, marginRight: 15, height: 150, 
-    backgroundColor: '#1C1C1E', justifyContent: 'space-between', borderWidth: 1, borderColor: '#333' 
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  benefitBrand: { color: '#FFF', fontWeight: 'bold', fontSize: 14, flex: 1 },
-  benefitOffer: { color: '#D4AF37', fontSize: 22, fontWeight: 'bold', marginVertical: 5 },
-  benefitDesc: { color: '#888', fontSize: 12 },
-  tagContainer: { flexDirection: 'row', marginTop: 5 },
-  cardTypeTag: { backgroundColor: '#333', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, color: '#CCC', fontSize: 10 },
-
-  emptyState: { paddingHorizontal: 20, marginBottom: 30 },
-  emptyText: { color: '#555', fontStyle: 'italic' },
-
-  actionContainer: { paddingHorizontal: 20 },
-  bigScanButton: { 
-    backgroundColor: '#D4AF37', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 
-    padding: 20, borderRadius: 20, marginTop: 10, gap: 10 
-  },
-  bigScanText: { color: '#000', fontWeight: 'bold', fontSize: 18 }
+  sectionTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+  actionGrid: { flexDirection: 'row', gap: 15 },
+  actionBtn: { backgroundColor: '#1C1C1E', flex: 1, padding: 20, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  iconCircle: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  actionText: { color: '#FFF', fontWeight: 'bold' }
 });
